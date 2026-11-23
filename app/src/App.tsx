@@ -12,6 +12,8 @@ import { useColleges } from './colleges/store';
 import { useSettings } from './settings';
 import { startStandby } from './dictation/session';
 import { unlockAudio } from './voice/earcons';
+import { startCoach } from './voice/coach';
+import { SettingsScreen } from './features/SettingsScreen';
 import { MemoryScreen } from './features/MemoryScreen';
 import { useMemory } from './memory/store';
 import { ConfirmDialog } from './features/ConfirmDialog';
@@ -24,9 +26,11 @@ export function App() {
   const counselorOpen = useCounselor((s) => s.open);
   const adminOpen = useColleges((s) => s.adminOpen);
   const memoryOpen = useMemory((s) => s.screenOpen);
+  const settingsOpen = useSettings((s) => s.screenOpen);
 
   useEffect(() => {
     void useStore.getState().init();
+    startCoach();
   }, []);
 
   useEffect(() => {
@@ -76,6 +80,8 @@ export function App() {
         <CollegesAdmin />
       ) : memoryOpen ? (
         <MemoryScreen />
+      ) : settingsOpen ? (
+        <SettingsScreen />
       ) : (
         <>
           <Sidebar />

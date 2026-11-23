@@ -14,8 +14,19 @@ export interface ChunkerOptions {
   interimEvery?: number;
   onSpeechStart?: () => void;
   onInterim?: (samples: Float32Array) => void;
-  /** `paused` is false when the stretch was cut for length, mid-speech. */
-  onChunk?: (samples: Float32Array, paused: boolean) => void;
+  /**
+   * `paused` is false when the stretch was cut for length, mid-speech.
+   * `quietSeconds` is how long ago the speaker actually stopped.
+   */
+  onChunk?: (samples: Float32Array, paused: boolean, quietSeconds: number) => void;
+  /**
+   * Called once at the start of each pause, well before it is long enough to
+   * end the stretch, so transcription can begin early. If the speaker carries
+   * on, it is called again at the next pause with the longer audio.
+   */
+  onEarly?: (samples: Float32Array) => void;
+  /** How long a pause must be before onEarly fires, in seconds. */
+  earlyQuiet?: number;
 }
 
 const FRAME = 480; // 30 ms
@@ -87,6 +98,9 @@ export class Chunker {
     this.quietFrames = loud ? 0 : this.quietFrames + 1;
     this.framesSinceInterim++;
     const seconds = (n: number) => (n * FRAME) / SAMPLE_RATE;
+    if (this.opts.onEarly && this.quietFrames === Math.max(1, Math.round(((this.opts.earlyQuiet ?? 0.2) * SAMPLE_RATE) / FRAME))) {
+      this.opts.onEarly(join(this.speech));
+    }
     if (seconds(this.quietFrames) >= this.opts.endSilence) return this.close(true);
     if (seconds(this.speech.length) >= this.opts.maxLength) return this.close(false);
     if (seconds(this.framesSinceInterim) >= this.opts.interimEvery) {
@@ -97,11 +111,12 @@ export class Chunker {
 
   private close(paused: boolean) {
     const samples = join(this.speech);
+    const quietSeconds = (this.quietFrames * FRAME) / SAMPLE_RATE;
     this.speech = [];
     this.speaking = false;
     this.loudRun = 0;
     this.quietFrames = 0;
-    this.opts.onChunk?.(samples, paused);
+    this.opts.onChunk?.(samples, paused, quietSeconds);
   }
 }
 

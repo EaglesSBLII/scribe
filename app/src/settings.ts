@@ -22,6 +22,8 @@ interface Values {
   speakReplies: boolean;
   voice: string;
   counselorMode: CounselorMode;
+  /** Talking over Scribe stops it. When off, the microphone is ignored while Scribe speaks. */
+  bargeIn: boolean;
 }
 
 const DEFAULTS: Values = {
@@ -31,12 +33,16 @@ const DEFAULTS: Values = {
   earconVolume: 0.6,
   earconsOff: [],
   speakReplies: true,
-  voice: 'af_heart',
+  voice: 'af_bella',
   counselorMode: 'draft',
+  bargeIn: true,
 };
 
 interface SettingsState extends Values {
   accountId: string | null;
+  /** The settings screen is showing. */
+  screenOpen: boolean;
+  setScreenOpen(open: boolean): void;
   load(accountId: string): Promise<void>;
   set<K extends keyof Values>(key: K, value: Values[K]): Promise<void>;
   setModel(model: string): Promise<void>;
@@ -44,6 +50,8 @@ interface SettingsState extends Values {
 
 export const useSettings = create<SettingsState>((set, get) => ({
   accountId: null,
+  screenOpen: false,
+  setScreenOpen: (screenOpen) => set({ screenOpen }),
   ...DEFAULTS,
 
   async load(accountId) {

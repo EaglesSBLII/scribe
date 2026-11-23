@@ -35,6 +35,8 @@ let lastSaved = 0;
 /** For tests and for the settings screen: the cues played, newest last. */
 export const played: Earcon[] = [];
 
+if (typeof window !== 'undefined') (window as unknown as { __scribeEarcons: Earcon[] }).__scribeEarcons = played;
+
 /** The shared audio context. Browsers (iOS above all) only let it start from a tap. */
 export function audioContext(): AudioContext | null {
   if (typeof AudioContext === 'undefined') return null;

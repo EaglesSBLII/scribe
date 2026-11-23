@@ -13,6 +13,8 @@ const { createWhisper } = require(path.join(libDir, 'whisper.js'));
 const ollama = require(path.join(libDir, 'ollama.js'));
 
 const whisper = createWhisper(resources);
+const { createTts } = require(path.join(libDir, 'tts.js'));
+const tts = createTts(resources);
 let win = null;
 
 function indexFile() {
@@ -50,6 +52,12 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media');
 
   ipcMain.handle('asr:available', () => whisper.available());
+  ipcMain.handle('tts:info', () => ({ available: tts.available(), voices: tts.voices, defaultVoice: tts.defaultVoice }));
+  ipcMain.handle('tts:speak', async (_e, text, voice, speed) => {
+    const audio = await tts.synth(String(text ?? ''), voice, speed);
+    // Hand the page the bytes of the WAV file.
+    return audio.wav.buffer.slice(audio.wav.byteOffset, audio.wav.byteOffset + audio.wav.byteLength);
+  });
   ipcMain.handle('asr:transcribe', async (_e, wav) => {
     if (process.platform === 'darwin') await systemPreferences.askForMediaAccess('microphone').catch(() => false);
     return whisper.transcribe(Buffer.from(wav));
@@ -77,4 +85,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => app.quit());
-app.on('will-quit', () => whisper.stop());
+app.on('will-quit', () => {
+  whisper.stop();
+  tts.stop();
+});

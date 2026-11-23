@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Archive, ArchiveRestore, ArrowDown, ArrowUp, Fingerprint, GraduationCap, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowDown, ArrowUp, Fingerprint, GraduationCap, MoreHorizontal, Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useMemory } from '../memory/store';
+import { useSettings } from '../settings';
 import { useStore } from '../store';
 import { useColleges } from '../colleges/store';
 import { flushPending } from '../editorBus';
@@ -163,6 +164,15 @@ export function Sidebar() {
           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-white/60"
         >
           <Fingerprint size={16} /> My voice and memory
+        </button>
+        <button
+          onClick={() => {
+            flushPending();
+            useSettings.getState().setScreenOpen(true);
+          }}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-white/60"
+        >
+          <SlidersHorizontal size={16} /> Settings
         </button>
         <div className="truncate px-2 pt-1 text-xs text-muted" title={account?.email}>
           {account?.email}

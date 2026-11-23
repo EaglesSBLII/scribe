@@ -6,6 +6,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { createWhisper } = require('./whisper.js');
 const ollama = require('./ollama.js');
+const { createTts } = require('./tts.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const DIST = path.join(ROOT, 'app', 'dist');
@@ -19,6 +20,7 @@ const TYPES = {
 };
 
 const whisper = createWhisper(path.join(ROOT, 'desktop', 'resources'));
+const tts = createTts(path.join(ROOT, 'desktop', 'resources'));
 
 function send(res, status, body, type = 'application/json') {
   res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' });
@@ -49,7 +51,13 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (url.pathname === '/api/health') {
-      return send(res, 200, { asr: whisper.available(), asrModel: whisper.model });
+      return send(res, 200, { asr: whisper.available(), asrModel: whisper.model, tts: tts.available(), voices: tts.voices, defaultVoice: tts.defaultVoice });
+    }
+    if (url.pathname === '/api/tts' && req.method === 'POST') {
+      const { text, voice, speed } = JSON.parse((await readBody(req)).toString('utf8'));
+      const audio = await tts.synth(String(text ?? ''), voice, speed);
+      res.writeHead(200, { 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store', 'X-Synth-Ms': String(Math.round(audio.ms)) });
+      return res.end(audio.wav);
     }
     if (url.pathname === '/api/llm/models') {
       return send(res, 200, { models: await ollama.models().catch(() => []) });
@@ -99,11 +107,15 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`Scribe is running at ${address}  (Ctrl+C to stop)`);
   if (whisper.available()) whisper.start().then(() => console.log('Speech engine ready.'), (e) => console.error(e.message));
   else console.log('Speech engine not installed; dictation is off. Run ./setup.sh to add it.');
+  // Load the voice now, so the first thing Scribe says is not slow.
+  if (tts.available()) tts.synth('Ready.').then(() => console.log('Voice ready.'), (e) => console.error(e.message));
+  else console.log('Voice not installed; Scribe will stay silent. Run ./setup.sh to add it.');
   if (!process.argv.includes('--no-open')) spawn('open', [address], { stdio: 'ignore' }).on('error', () => {});
 });
 
 function shutdown() {
   whisper.stop();
+  tts.stop();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 500).unref();
 }

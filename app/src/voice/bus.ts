@@ -21,6 +21,18 @@ export function setQuestionHandler(handler: ((text: string) => void) | null) {
   onQuestion = handler;
 }
 
+let onInterrupt: (() => void) | null = null;
+
+/** The counselor registers here so that talking over it also stops it writing. */
+export function setInterruptHandler(handler: (() => void) | null) {
+  onInterrupt = handler;
+}
+
+/** The writer talked over Scribe. */
+export function interrupt() {
+  onInterrupt?.();
+}
+
 /** Send a spoken question to the counselor. Returns false when no counselor is listening. */
 export function askCounselor(text: string): boolean {
   if (!onQuestion) return false;

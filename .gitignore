@@ -8,6 +8,7 @@ desktop/resources/models/
 .setup-run.log
 desktop/lib/
 desktop/resources/icons/icon.iconset/
+app/tests/fixtures/long.wav
 test-results/
 playwright-report/
 *.tsbuildinfo

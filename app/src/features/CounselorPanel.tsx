@@ -8,34 +8,16 @@ import { splitQuotes } from '../llm/guard';
 import { locate, mechanicalChecks, type Finding } from '../checks';
 import { exportEssay, type ExportFormat } from '../export';
 import { platform } from '../platform';
-import { setQuestionHandler, toggleDictation, useDictation } from '../dictation/session';
+import { toggleDictation, useDictation } from '../dictation/session';
 import { docText } from '../doc/types';
 import type { EssayRow } from '../db/schema';
-import { collegeNotes, useColleges } from '../colleges/store';
 import { GradeCard } from './GradeCard';
 import { useMemory } from '../memory/store';
-import { buildVoice } from '../memory/voice';
+import { viewOf, voiceFor } from './counselorView';
 import { usePaper } from '../paper/store';
 import { hasPaperParts } from '../paper/layout';
 
 const QUICK_ASKS = ['What do you think about this?', 'What should I include?', 'Does this answer the prompt?'];
-
-/** The student's voice as measured from all their essays and what they said while brainstorming. */
-const voiceFor = (e: EssayRow) => {
-  const { rows, enabled } = useMemory.getState();
-  const brainstorm = useCounselor.getState().messages.filter((m) => m.role === 'user' && m.stage === 'brainstorm').map((m) => m.text);
-  return buildVoice(useStore.getState().essays.filter((x) => x.accountId === e.accountId), e, rows, enabled, brainstorm);
-};
-
-const viewOf = (e: EssayRow) => {
-  const { colleges, rubrics, principles } = useColleges.getState();
-  return {
-    memoryNotes: voiceFor(e).notes,
-    id: e.id, accountId: e.accountId, title: e.title, stage: e.stage, promptText: e.promptText ?? '',
-    wordCount: e.wordCount, wordLimit: e.wordLimit ?? null, doc: e.doc,
-    collegeNotes: collegeNotes(colleges.find((c) => c.id === e.collegeId), rubrics, principles),
-  };
-};
 
 /** A counselor reply. Quotes of the student's own words are marked as theirs. */
 function Reply({ text, studentText }: { text: string; studentText: string }) {
@@ -233,20 +215,10 @@ export function CounselorPanel() {
   const memoryOn = useMemory((s) => s.enabled);
   const memoryBusy = useMemory((s) => s.busy);
   const bottom = useRef<HTMLDivElement>(null);
-  const essayRef = useRef(essay);
-  essayRef.current = essay;
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: 'end' });
   }, [messages.length, streaming]);
-
-  // A question spoken with the panel's microphone is asked straight away.
-  useEffect(() => {
-    setQuestionHandler((text) => {
-      if (essayRef.current) void useCounselor.getState().ask(text, viewOf(essayRef.current));
-    });
-    return () => setQuestionHandler(null);
-  }, []);
 
   if (!essay) return null;
   const counselor = useCounselor.getState();
@@ -286,7 +258,7 @@ export function CounselorPanel() {
         {essay.stage === 'brainstorm' && (
           <div className="space-y-2">
             <div className="flex gap-2">
-              <button disabled={busy} onClick={() => void counselor.startBrainstorm(view)} className="flex-1 rounded-md bg-accent px-2 py-1.5 text-sm font-medium text-white">
+              <button disabled={busy} onClick={() => void counselor.startBrainstorm(view, { spoken: useDictation.getState().on })} className="flex-1 rounded-md bg-accent px-2 py-1.5 text-sm font-medium text-white">
                 {messages.length ? 'Ask me another' : 'Start brainstorm'}
               </button>
               <button disabled={busy} onClick={() => void counselor.mapStories(view)} className="flex-1 rounded-md border border-line bg-white px-2 py-1.5 text-sm">

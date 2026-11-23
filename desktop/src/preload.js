@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('scribeBridge', {
   asrAvailable: () => ipcRenderer.invoke('asr:available'),
+  ttsInfo: () => ipcRenderer.invoke('tts:info'),
+  ttsSpeak: (text, voice, speed) => ipcRenderer.invoke('tts:speak', text, voice, speed),
   asrTranscribe: (wav) => ipcRenderer.invoke('asr:transcribe', wav),
   llmModels: () => ipcRenderer.invoke('llm:models'),
   llmUnload: (model) => ipcRenderer.invoke('llm:unload', model),

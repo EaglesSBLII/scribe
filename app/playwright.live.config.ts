@@ -34,6 +34,10 @@ export default defineConfig({
     { name: 'math', testMatch: /math\.spec/, use: withRecording('math.wav') },
     { name: 'wake', testMatch: /wake\.spec/, use: withRecording('wake.wav') },
     { name: 'scribe2', testMatch: /scribe2\.spec/, use: withRecording('scribe2.wav') },
+    { name: 'talk', testMatch: /talk\.spec/, use: withRecording('talk.wav') },
+    { name: 'coach', testMatch: /coach\.spec/, use: withRecording('coach.wav') },
+    // Ten minutes long, so it runs only when asked for: npm run e2e:long -w app
+    ...(process.env.SCRIBE_LONG ? [{ name: 'long', testMatch: /long\.spec/, use: withRecording('long.wav') }] : []),
   ],
   webServer: {
     command: 'node ../local/server.js --no-open',

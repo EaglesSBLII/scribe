@@ -33,6 +33,10 @@ export interface PlatformBridge {
   llmUnload(model: string): Promise<void>;
   /** Resolves with the whole reply; `onDelta` gets it piece by piece. */
   llmChat(request: ChatRequest, onDelta?: (text: string) => void, signal?: AbortSignal): Promise<string>;
+  /** The local voice: whether it is installed, and the voices it has. */
+  ttsInfo(): Promise<{ available: boolean; voices: string[]; defaultVoice: string }>;
+  /** One sentence as a WAV file, synthesized on this machine. */
+  ttsSpeak(text: string, voice: string, speed?: number): Promise<ArrayBuffer>;
 }
 
 declare global {
@@ -42,6 +46,8 @@ declare global {
       asrTranscribe(wav: ArrayBuffer): Promise<Transcript>;
       llmModels(): Promise<string[]>;
       llmUnload(model: string): Promise<boolean>;
+      ttsInfo(): Promise<{ available: boolean; voices: string[]; defaultVoice: string }>;
+      ttsSpeak(text: string, voice: string, speed?: number): Promise<ArrayBuffer>;
       llmChat(id: string, request: ChatRequest): Promise<string>;
       llmAbort(id: string): void;
       onLlmDelta(listener: (id: string, text: string) => void): () => void;
@@ -65,6 +71,19 @@ const web: PlatformBridge = {
     const res = await fetch('/api/asr', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: wav });
     if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? 'Speech engine failed.');
     return res.json();
+  },
+  async ttsInfo() {
+    try {
+      const health = await (await fetch('/api/health')).json();
+      return { available: health.tts === true, voices: health.voices ?? [], defaultVoice: health.defaultVoice ?? 'af_bella' };
+    } catch {
+      return { available: false, voices: [], defaultVoice: 'af_bella' };
+    }
+  },
+  async ttsSpeak(text, voice, speed) {
+    const res = await fetch('/api/tts', { method: 'POST', body: JSON.stringify({ text, voice, speed }) });
+    if (!res.ok) throw new Error('The voice is not available.');
+    return res.arrayBuffer();
   },
   async llmModels() {
     try {
@@ -107,6 +126,8 @@ function desktop(bridge: NonNullable<Window['scribeBridge']>): PlatformBridge {
   return {
     kind: 'desktop',
     asrAvailable: () => bridge.asrAvailable(),
+    ttsInfo: () => bridge.ttsInfo().catch(() => ({ available: false, voices: [], defaultVoice: 'af_bella' })),
+    ttsSpeak: (text, voice, speed) => bridge.ttsSpeak(text, voice, speed),
     transcribe: (wav) => bridge.asrTranscribe(wav),
     llmModels: () => bridge.llmModels().catch(() => []),
     llmUnload: async (model) => void (await bridge.llmUnload(model).catch(() => false)),

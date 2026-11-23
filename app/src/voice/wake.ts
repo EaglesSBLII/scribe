@@ -81,6 +81,10 @@ export function readWake(heard: HeardWord[]): Wake {
   const rest = after.map((t) => t.word);
   if (after.length === 0) return { wake: true, alone: true, rest: [] };
 
+  // The name said twice ("Jarvis! Hey Jarvis!") is still just a call.
+  const again = readWake(rest);
+  if (again.wake) return again;
+
   const setOff = /[,.!?:;—–-]/.test(name.trail);
   const next = after[0];
   const gap = name.word.end !== undefined && next.word.start !== undefined ? next.word.start - name.word.end : 0;

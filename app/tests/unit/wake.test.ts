@@ -42,7 +42,7 @@ describe('the wake word', () => {
   });
 
   it('accepts the ways Whisper mishears the name said on its own or as a call', () => {
-    for (const s of ['Jervis.', 'Jörvis.', 'Javez.', 'Hey Jermis.', 'Hey Jarmis!', 'Service.', 'Travis.', 'Javez, How many words do I have?', 'Travis, undo that.']) {
+    for (const s of ['Hey Javis! Hey Javis!', 'Jarvis. Jarvis.', 'Jervis.', 'Jörvis.', 'Javez.', 'Hey Jermis.', 'Hey Jarmis!', 'Service.', 'Travis.', 'Javez, How many words do I have?', 'Travis, undo that.']) {
       expect(readWake(heard(s)).wake, s).toBe(true);
     }
   });

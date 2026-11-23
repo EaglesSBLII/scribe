@@ -1,6 +1,7 @@
 import { useStore } from '../store';
 import { useCounselor } from '../llm/counselor';
 import type { EssayRow, Stage } from '../db/schema';
+import { useSettings } from '../settings';
 
 const STAGES: { id: Stage; label: string; hint: string }[] = [
   { id: 'brainstorm', label: 'Brainstorm', hint: 'Talk through your stories with the counselor' },
@@ -24,6 +25,10 @@ export function Stepper({ essay }: { essay: EssayRow }) {
               useStore.getState().setStage(essay.id, s.id);
               // Drafting is quiet; every other stage works with the counselor.
               useCounselor.getState().setOpen(s.id !== 'draft');
+              // Brainstorm is a conversation by default; leaving it goes back to quiet drafting.
+              const mode = useSettings.getState().counselorMode;
+              if (s.id === 'brainstorm') void useSettings.getState().set('counselorMode', 'conversation');
+              else if (essay.stage === 'brainstorm' && mode === 'conversation') void useSettings.getState().set('counselorMode', 'draft');
             }}
             className={`rounded-full px-3 py-1 ${
               i === at ? 'bg-accent font-medium text-white' : i < at ? 'bg-[#e3efe9] text-accent' : 'text-muted hover:bg-panel'
