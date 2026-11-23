@@ -32,6 +32,7 @@ export default defineConfig({
     { name: 'grading', testMatch: /grading\.spec/ },
     { name: 'voice', testMatch: /voice\.spec/ },
     { name: 'math', testMatch: /math\.spec/, use: withRecording('math.wav') },
+    { name: 'wake', testMatch: /wake\.spec/, use: withRecording('wake.wav') },
   ],
   webServer: {
     command: 'node ../local/server.js --no-open',

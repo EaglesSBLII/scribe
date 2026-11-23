@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { ArrowDown, ArrowUp, History as HistoryIcon, MessageCircle, Mic, MicOff, Redo2, Save, Sigma, Trash2, Undo2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Ear, History as HistoryIcon, MessageCircle, Mic, MicOff, Redo2, Save, Sigma, Trash2, Undo2 } from 'lucide-react';
 import { kindOf } from '../paper/layout';
 import { RichView } from './RichView';
 import { useCounselor } from '../llm/counselor';
@@ -9,7 +9,8 @@ import { useStore } from '../store';
 import { paraText, textToNodes, type Inline, type Paragraph } from '../doc/types';
 import { tidy } from '../doc/ops';
 import { clearPending, registerPending } from '../editorBus';
-import { toggleDictation, useDictation } from '../dictation/session';
+import { setWakeWord, toggleDictation, useDictation } from '../dictation/session';
+import { useSettings } from '../settings';
 import { clock } from './time';
 import { CommandChip } from './CommandChip';
 
@@ -197,11 +198,22 @@ function ParagraphBlock({ para, index, count, equationNo }: { para: Paragraph; i
 }
 
 function DictationButton() {
-  const { hearing, waiting, error } = useDictation();
+  const { hearing, waiting, error, standby, awaiting } = useDictation();
   const on = useDictation((s) => s.on && s.target === 'essay');
-  const status = error ?? (!on ? '' : hearing ? 'Hearing you…' : waiting > 0 ? 'Writing it down…' : 'Listening');
+  const wakeWord = useSettings((s) => s.wakeWord);
+  const status =
+    error ?? (standby ? 'Say “Jarvis”' : !on ? '' : awaiting ? 'Yes? Go ahead…' : hearing ? 'Hearing you…' : waiting > 0 ? 'Writing it down…' : 'Listening');
   return (
     <>
+      <button
+        aria-pressed={wakeWord}
+        aria-label="Wake word"
+        title={wakeWord ? 'Listening for “Jarvis”. Click to switch the wake word off.' : 'Switch on the wake word: say “Jarvis” to start, hands-free.'}
+        onClick={() => void setWakeWord(!wakeWord)}
+        className={`flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1.5 text-sm ${wakeWord ? 'border-accent bg-[#e3efe9] font-medium text-accent' : 'border-line text-muted'}`}
+      >
+        <Ear size={15} /> Jarvis
+      </button>
       <span
         data-testid="dictation-status"
         role="status"

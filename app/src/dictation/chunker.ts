@@ -38,6 +38,11 @@ export class Chunker {
     this.opts = { endSilence: 0.9, maxLength: 28, interimEvery: 1.5, ...opts };
   }
 
+  /** Change how long a pause ends an utterance (shorter while waiting for the wake word). */
+  setEndSilence(seconds: number) {
+    this.opts.endSilence = seconds;
+  }
+
   feed(samples: Float32Array) {
     const all = new Float32Array(this.pending.length + samples.length);
     all.set(this.pending);

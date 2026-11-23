@@ -7,7 +7,7 @@ const path = require('node:path');
 
 const DEFAULT_MODEL = 'ggml-large-v3-turbo-q5_0.bin';
 const COMMAND_HINT =
-  'Scribe voice commands: Insert, Delete, Move paragraph, Replace, Undo, Read back, Word count, New paragraph.';
+  'Jarvis, Scribe voice commands: Insert, Delete, Move paragraph, Replace, Undo, Read back, Word count, New paragraph.';
 
 function freePort() {
   return new Promise((resolve, reject) => {

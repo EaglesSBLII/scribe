@@ -9,6 +9,9 @@ import { CounselorPanel } from './features/CounselorPanel';
 import { useCounselor } from './llm/counselor';
 import { CollegesAdmin } from './features/CollegesAdmin';
 import { useColleges } from './colleges/store';
+import { useSettings } from './settings';
+import { startStandby } from './dictation/session';
+import { unlockAudio } from './voice/earcons';
 import { MemoryScreen } from './features/MemoryScreen';
 import { useMemory } from './memory/store';
 import { ConfirmDialog } from './features/ConfirmDialog';
@@ -45,6 +48,24 @@ export function App() {
       document.removeEventListener('visibilitychange', onHide);
     };
   }, []);
+
+  // With the wake word switched on, start waiting for "Jarvis" as soon as the
+  // browser allows audio, which is at the first click or key press.
+  const wakeWord = useSettings((s) => s.wakeWord);
+  useEffect(() => {
+    if (!account || !wakeWord) return;
+    const begin = () => {
+      unlockAudio();
+      void startStandby();
+    };
+    begin();
+    window.addEventListener('pointerdown', begin, { once: true });
+    window.addEventListener('keydown', begin, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', begin);
+      window.removeEventListener('keydown', begin);
+    };
+  }, [account, wakeWord]);
 
   if (!ready) return null;
   if (!account) return <Onboarding />;

@@ -16,6 +16,8 @@ import { useCounselor } from './llm/counselor';
 import { useSettings } from './settings';
 import { useMemory } from './memory/store';
 import { readPaperUtterance } from './math/paper';
+import { askCounselor } from './voice/bus';
+import { playEarcon } from './voice/earcons';
 import { usePaper } from './paper/store';
 import { applySeed } from './colleges/seed';
 import { useColleges } from './colleges/store';
@@ -103,6 +105,8 @@ interface State {
   flipFlag(paraId: string, nodeIndex: number): void;
   /** Clean what Whisper heard and add it where dictation is pointing. */
   insertHeard(words: HeardWord[], paused: boolean): Promise<void>;
+  /** Something said to Scribe by name ("Jarvis, ..."): a command or a question, never essay text. */
+  handleAddressed(words: HeardWord[]): Promise<void>;
   setStage(id: string, stage: Stage): void;
   setPromptText(id: string, text: string): void;
   /** Math and physics mode: spoken mathematics is written as mathematics. */
@@ -140,11 +144,32 @@ export const useStore = create<State>((set, get) => {
       set({ toast: { text: 'Saving failed. Your last change may not be stored.' } });
     }));
     void mine.then(() => {
-      if (queue === mine) set({ saveState: 'saved', savedAt: Date.now() });
+      if (queue === mine) {
+        set({ saveState: 'saved', savedAt: Date.now() });
+        playEarcon('saved');
+      }
     });
   }
 
   const current = () => get().essays.find((e) => e.id === get().currentId) ?? null;
+
+  /**
+   * A request in other words: ask the local model to restate it in the fixed
+   * grammar, then check that restatement in code. `forced` is true when the
+   * speaker said "Jarvis", so there is no need to guess whether it is a request.
+   */
+  async function restated(said: string, forced: boolean): Promise<Command | null> {
+    if (!forced && !looksLikeEditRequest(said)) return null;
+    set({ chip: { text: 'Working out that request…', phase: 'info' } });
+    const text = await restateCommand(said);
+    set({ chip: null });
+    const parsed = text ? parseCommand(text) : null;
+    if (!parsed) return null;
+    // The model may only rearrange the speaker's own words.
+    if (parsed.k === 'insert' && !guard(said, parsed.words.map((w) => w.text).join(' '))) return null;
+    if (parsed.k === 'replace' && !(guard(said, parsed.find) && guard(said, parsed.with))) return null;
+    return parsed;
+  }
 
   function patchEssay(id: string, patch: Partial<EssayRow>) {
     const essays = get().essays.map((e) => (e.id === id ? { ...e, ...patch } : e));
@@ -210,6 +235,7 @@ export const useStore = create<State>((set, get) => {
           // "Change came to my town" is a sentence, not a failed replace.
           if (out.notFound) return false;
           set({ chip: { text: out.text, phase: 'error' } });
+          playEarcon('failed');
           return true;
         case 'say':
           set({ chip: out.read ? { text: 'Reading aloud', phase: 'info', action: 'stop' } : { text: out.text, phase: 'info' } });
@@ -252,6 +278,7 @@ export const useStore = create<State>((set, get) => {
       // A large deletion stops at the confirmation dialog like any other.
       const applied = get().edit(out.op);
       set({ chip: applied ? { text: out.done, phase: 'done', action: 'undo' } : null });
+      if (applied) playEarcon('applied');
     },
 
     chipAction() {
@@ -500,27 +527,34 @@ export const useStore = create<State>((set, get) => {
       if (op) get().edit(op);
     },
 
+    async handleAddressed(heard) {
+      flushPending();
+      get().flushCommand();
+      const said = heard.map((h) => h.text).join(' ').replace(/\s+/g, ' ').trim();
+      if (!said) return;
+      // Said to Scribe by name, so it is a command or a question, never essay text.
+      const cmd = parseCommand(heard) ?? (await restated(said, true));
+      if (cmd) {
+        // A command that cannot be carried out is reported, not typed into the essay.
+        if (!get().handleCommand(cmd)) {
+          set({ chip: { text: 'That did not match anything in the essay.', phase: 'error' } });
+          playEarcon('failed');
+        }
+        return;
+      }
+      if (!askCounselor(clean(heard).text.trim() || said)) {
+        set({ chip: { text: `Scribe did not understand: “${said}”`, phase: 'error' } });
+        playEarcon('failed');
+      }
+    },
+
     async insertHeard(heard, paused) {
       flushPending();
       // An edit still being previewed is applied first, so everything stays in spoken order.
       get().flushCommand();
       // A whole utterance that fits the command grammar is a command, not essay text.
-      let cmd = paused ? parseCommand(heard) : null;
       const said = heard.map((h) => h.text).join(' ').replace(/\s+/g, ' ').trim();
-      if (!cmd && paused && looksLikeEditRequest(said)) {
-        // It sounds like an edit request in other words: ask the local model to
-        // restate it in the fixed grammar, then check that restatement in code.
-        set({ chip: { text: 'Working out that request…', phase: 'info' } });
-        const restated = await restateCommand(said);
-        set({ chip: null });
-        const parsed = restated ? parseCommand(restated) : null;
-        const onlySpokenWords =
-          !parsed ||
-          (parsed.k === 'insert' && guard(said, parsed.words.map((w) => w.text).join(' '))) ||
-          (parsed.k === 'replace' && guard(said, parsed.find) && guard(said, parsed.with)) ||
-          (parsed.k !== 'insert' && parsed.k !== 'replace');
-        if (parsed && onlySpokenWords) cmd = parsed;
-      }
+      const cmd = paused ? (parseCommand(heard) ?? (await restated(said, false))) : null;
       if (cmd && get().handleCommand(cmd)) return;
       const essay = current();
       if (!essay) return;

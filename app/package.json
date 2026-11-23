@@ -9,6 +9,7 @@
     "preview": "vite preview --host 127.0.0.1 --port 4317 --strictPort",
     "test": "vitest run",
     "e2e": "playwright test",
+    "eval": "vitest run --config vitest.eval.config.ts",
     "e2e:live": "playwright test -c playwright.live.config.ts"
   },
   "dependencies": {
