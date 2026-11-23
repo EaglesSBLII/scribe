@@ -232,7 +232,10 @@ export function CounselorPanel() {
   };
 
   return (
-    <aside aria-label="Counselor" className="flex w-96 shrink-0 flex-col border-l border-line bg-panel">
+    <aside
+      aria-label="Counselor"
+      className="fixed inset-x-0 bottom-0 z-30 flex h-[72dvh] flex-col rounded-t-2xl border-t border-line bg-panel shadow-2xl md:static md:h-auto md:w-96 md:shrink-0 md:rounded-none md:border-l md:border-t-0 md:shadow-none"
+    >
       <div className="flex items-center justify-between gap-2 px-4 py-3">
         <h2 className="font-semibold">Counselor</h2>
         <ModelPicker />

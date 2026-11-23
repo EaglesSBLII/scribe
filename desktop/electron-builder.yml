@@ -12,6 +12,13 @@ extraResources:
     to: bin
   - from: resources/models
     to: models
+    filter:
+      - "**/*"
+      - "!**/*.tar.bz2"
+      - "!**/*.part"
+# The voice engine is a native library: it must sit outside the app archive to be loaded.
+asarUnpack:
+  - "**/node_modules/sherpa-onnx-*/**"
 npmRebuild: false
 mac:
   target:

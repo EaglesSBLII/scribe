@@ -45,8 +45,17 @@ export function startCoach() {
   setQuestionHandler((text) => {
     const essay = currentEssay();
     if (!essay) return;
-    useCounselor.getState().setOpen(true);
-    void useCounselor.getState().ask(text, viewOf(essay), { spoken: true });
+    const counselor = useCounselor.getState();
+    counselor.setOpen(true);
+    const ask = () => void useCounselor.getState().ask(text, viewOf(essay), { spoken: true });
+    if (!counselor.busy) return ask();
+    // Still writing the last answer: the new question takes over instead of being lost.
+    counselor.stop();
+    const off = useCounselor.subscribe((s) => {
+      if (s.busy) return;
+      off();
+      ask();
+    });
   });
   setInterruptHandler(() => useCounselor.getState().stop());
 

@@ -1,7 +1,7 @@
 {
   "name": "scribe",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Scribe: a free, local, voice-first essay writing app",
   "workspaces": [
     "app",
@@ -20,6 +20,7 @@
     "e2e:live": "npm run e2e:live -w app",
     "desktop": "npm run start -w desktop",
     "smoke": "npm run smoke -w desktop",
-    "dist:mac": "npm run build -w app && npm run dist -w desktop"
+    "dist:mac": "npm run build -w app && npm run dist -w desktop",
+    "e2e:phone": "npm run e2e:phone -w app"
   }
 }

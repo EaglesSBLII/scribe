@@ -18,6 +18,31 @@ body,
   height: 100%;
 }
 
+/* On a phone: fill the visible screen, keep clear of the notch and home bar, and
+   use text large enough that focusing a field does not zoom the page. */
+@supports (height: 100dvh) {
+  #root {
+    height: 100dvh;
+  }
+}
+
+#root {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+  box-sizing: border-box;
+}
+
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  body {
+    overscroll-behavior: none;
+  }
+}
+
 body {
   background: var(--color-paper);
   color: var(--color-ink);

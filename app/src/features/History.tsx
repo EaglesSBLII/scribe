@@ -10,7 +10,7 @@ export function History() {
   const store = useStore.getState();
 
   return (
-    <aside aria-label="Version history" className="flex w-80 shrink-0 flex-col border-l border-line bg-panel">
+    <aside aria-label="Version history" className="fixed inset-0 z-30 flex flex-col bg-panel md:static md:w-80 md:shrink-0 md:border-l md:border-line">
       <div className="flex items-center justify-between px-4 py-4">
         <h2 className="font-semibold">Version history</h2>
         <button aria-label="Close version history" onClick={() => void store.openHistory(false)} className="rounded p-1 text-muted hover:bg-white">

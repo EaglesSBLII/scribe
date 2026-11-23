@@ -7,6 +7,7 @@ import { useColleges } from '../colleges/store';
 import { flushPending } from '../editorBus';
 import type { EssayRow, Stage } from '../db/schema';
 import { ago } from './time';
+import { useUi } from './ui';
 
 const STAGE_LABEL: Record<Stage, string> = {
   brainstorm: 'Brainstorm',
@@ -26,6 +27,8 @@ export function Sidebar() {
   const [showArchived, setShowArchived] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const store = useStore.getState();
+  const navOpen = useUi((u) => u.navOpen);
+  const closeNav = () => useUi.getState().setNavOpen(false);
 
   const sorted = [...essays].sort((a, b) => a.order - b.order);
   const active = sorted.filter((e) => !e.archived);
@@ -72,7 +75,11 @@ export function Sidebar() {
           <button
             className="block w-full px-3 py-2 pr-9 text-left"
             aria-current={isCurrent ? 'page' : undefined}
-            onClick={() => !essay.archived && void store.openEssay(essay.id)}
+            onClick={() => {
+              if (essay.archived) return;
+              closeNav();
+              void store.openEssay(essay.id);
+            }}
             onDoubleClick={() => setRenaming(essay.id)}
           >
             <span className="block truncate text-sm font-medium">{essay.title}</span>
@@ -117,14 +124,20 @@ export function Sidebar() {
   }
 
   return (
-    <nav aria-label="Essays" className="flex w-64 shrink-0 flex-col border-r border-line bg-panel">
+    <nav
+      aria-label="Essays"
+      className={`${navOpen ? 'flex' : 'hidden'} fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] shrink-0 flex-col border-r border-line bg-panel shadow-xl md:static md:flex md:w-64 md:shadow-none`}
+    >
       <div className="flex items-center justify-between px-4 py-4">
         <span className="flex items-center gap-2 font-serif text-xl">
           <img src="./icon.svg" alt="" className="h-7 w-7" />
           Scribe
         </span>
         <button
-          onClick={() => void store.createEssay()}
+          onClick={() => {
+            closeNav();
+            void store.createEssay();
+          }}
           className="flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-sm font-medium text-white"
         >
           <Plus size={14} /> New essay
@@ -150,6 +163,7 @@ export function Sidebar() {
         <button
           onClick={() => {
             flushPending();
+            closeNav();
             useColleges.getState().setAdminOpen(true);
           }}
           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-white/60"
@@ -159,6 +173,7 @@ export function Sidebar() {
         <button
           onClick={() => {
             flushPending();
+            closeNav();
             useMemory.getState().setScreenOpen(true);
           }}
           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-white/60"
@@ -168,6 +183,7 @@ export function Sidebar() {
         <button
           onClick={() => {
             flushPending();
+            closeNav();
             useSettings.getState().setScreenOpen(true);
           }}
           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-white/60"

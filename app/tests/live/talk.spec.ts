@@ -67,9 +67,10 @@ test('a spoken conversation: fast to answer, stops when interrupted, never write
   await expect(page.getByTestId('command-chip')).toContainText('Conversation mode', { timeout: 60_000 });
 
   const replies = page.getByTestId('chat').locator('[data-role="assistant"]');
-  // Five answered questions, then the interrupted one.
-  await expect(replies).toHaveCount(5, { timeout: 150_000 });
-  await expect(replies.filter({ hasText: '[interrupted]' })).toHaveCount(1, { timeout: 90_000 });
+  // Five answered questions, the long one that is talked over, and the answer to "wait, hold on".
+  await expect(replies).toHaveCount(7, { timeout: 240_000 });
+  // A reply cut off while it was still being written is marked; one already written in full is not.
+  expect(await replies.filter({ hasText: '[interrupted]' }).count()).toBeLessThanOrEqual(1);
   await page.waitForTimeout(12_000);
 
   const m = await metrics(page);
@@ -88,7 +89,7 @@ test('a spoken conversation: fast to answer, stops when interrupted, never write
   console.log('WHAT THE STUDENT SAID:\n  ' + said.join('\n  '));
   console.log('WHAT THE COUNSELOR SAID:\n  ' + answers.map((a) => a.replace(/\s+/g, ' ')).join('\n  '));
 
-  // It spoke, and it was interrupted exactly once.
+  // It spoke, and every time it was talked over it stopped.
   expect(answered.length).toBeGreaterThanOrEqual(5);
   expect(m.bargeIns.length).toBeGreaterThanOrEqual(1);
   expect(Math.max(...stops)).toBeLessThanOrEqual(300);

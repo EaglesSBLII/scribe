@@ -27,7 +27,17 @@ const NUDGES: Record<NudgeReason, string> = {
     '(The student is close to, or over, the word limit for this prompt. In one or two short sentences, tell them where they stand and name one specific line or paragraph of theirs that could be cut or tightened, quoting a few of its words.)',
 };
 
-const HISTORY_TURNS = 12;
+// How much of the conversation the model is shown: between 12 and 24 messages.
+// The window moves forward a block at a time, not one message per turn. A
+// window that slid every turn changed the start of the prompt every turn, so
+// the model had to re-read all of it and each spoken answer started later.
+const HISTORY_MAX = 24;
+const HISTORY_STEP = 12;
+
+export function recentHistory<T>(messages: T[]): T[] {
+  const over = messages.length - HISTORY_MAX;
+  return over <= 0 ? messages : messages.slice(Math.ceil(over / HISTORY_STEP) * HISTORY_STEP);
+}
 
 interface CounselorState {
   open: boolean;
@@ -58,7 +68,7 @@ let abort: AbortController | null = null;
 export const useCounselor = create<CounselorState>((set, get) => {
   async function reply(essay: EssayView & { id: string }, turn: ChatMessage, extraRules: string[], spoken: boolean) {
     const model = useSettings.getState().llmModel;
-    const history = get().messages.slice(-HISTORY_TURNS).map((m): ChatMessage => ({ role: m.role, content: m.text }));
+    const history = recentHistory(get().messages).map((m): ChatMessage => ({ role: m.role, content: m.text }));
     const system: ChatMessage[] = [
       { role: 'system', content: [COUNSELOR_RULES, ...extraRules].join('\n\n') },
       { role: 'system', content: essayContext(essay) },

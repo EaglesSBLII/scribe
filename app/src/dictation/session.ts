@@ -10,11 +10,14 @@
  */
 import { create } from 'zustand';
 import { Chunker, encodeWav, SAMPLE_RATE } from './chunker';
+import { makeResampler } from './resample';
 import { clean, type HeardWord } from './clean';
-import { platform } from '../platform';
+import { platform, Unreachable } from '../platform';
+import { hasQueuedAudio, queueAudio } from '../sync/queue';
+import { useSync } from '../sync';
 import { useStore } from '../store';
 import { useSettings } from '../settings';
-import { isOwnVoice, playbackAge, speak, stopSpeaking, useSpeech } from '../speech';
+import { isOwnVoice, playbackAge, quietSince, speak, stopSpeaking, useSpeech } from '../speech';
 import { beginTurn, mark, recordBargeIn } from '../voice/metrics';
 import { parseCommand } from '../commands/parse';
 import { isSleepRequest, readWake } from '../voice/wake';
@@ -49,6 +52,8 @@ useDictation.subscribe((s) => setVoiceOn(s.on && s.target === 'essay'));
 export { setQuestionHandler } from '../voice/bus';
 
 const MIN_SPEECH_SECONDS = 0.35;
+/** How long after Scribe stops speaking its echo can still begin (speaker and room delay). */
+const ECHO_TAIL_MS = 300;
 /** A shorter pause ends an utterance while waiting for the wake word, so it answers quickly. */
 const STANDBY_SILENCE = 0.5;
 const DICTATION_SILENCE = 0.9;
@@ -66,7 +71,43 @@ let chunkNo = 0;
 let awaitTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** An early transcription, started at the first short pause in case the speaker has finished. */
-let early: { length: number; result: Promise<{ text: string; words: HeardWord[] } | null> } | null = null;
+let early: { length: number; result: Promise<{ text: string; words: HeardWord[] } | null> } | null = null; // always from the quick transcriber
+
+type Heard = { text: string; words: HeardWord[] };
+
+/** Requests that change the essay: these are always heard with the exact transcriber. */
+const EDITS = /^(delete|remove|erase|scratch|cut|insert|add|put|move|replace|change|swap|shift|undo|redo)$/;
+const changesEssay = (rest: HeardWord[]) => EDITS.test((rest[0]?.text ?? '').toLowerCase().replace(/[^a-z]/g, ''));
+
+/** What is said right now is for Scribe (the wake word, an answer, the counselor), not for the essay. */
+function saidToScribe(): boolean {
+  const state = useDictation.getState();
+  return state.standby || state.awaiting || state.target === 'counselor' || !!useStore.getState().pending
+    || useSettings.getState().counselorMode === 'conversation';
+}
+
+/**
+ * Turn an utterance into words. The quick transcriber is used only for things
+ * said to Scribe; anything that becomes essay text or edits the essay is heard
+ * by the exact one.
+ */
+async function hear(wav: ArrayBuffer, rough: Heard | null): Promise<Heard> {
+  const fast = saidToScribe();
+  const quick = rough ?? (fast ? await platform.transcribe(wav, true) : null);
+  if (quick) {
+    const wake = readWake(quick.words);
+    if (useDictation.getState().standby) {
+      // Not the wake word: it is thrown away anyway. A request that edits the essay is heard again, exactly.
+      if (!wake.wake || !changesEssay(wake.rest)) return quick;
+    } else if (fast) {
+      if (!changesEssay(wake.wake ? wake.rest : quick.words)) return quick;
+    } else if (wake.wake && !changesEssay(wake.rest)) {
+      // Dictating, and this was a question or request to Scribe by name.
+      return quick;
+    }
+  }
+  return platform.transcribe(wav);
+}
 
 /** How long a pause ends an utterance right now. Conversation is quicker than dictation. */
 function endSilenceNow(): number {
@@ -189,8 +230,12 @@ async function openMic(): Promise<boolean> {
   if (stream) return true;
   unlockAudio();
   if (!(await platform.asrAvailable())) {
-    fail('The speech engine is not running. Start Scribe with ./setup.sh or npm start.');
-    return false;
+    // Out of reach of the Mac (a phone away from home): recording still works, and is transcribed later.
+    const offline = platform.kind === 'web' && (!navigator.onLine || !useSync.getState().online);
+    if (!offline) {
+      fail('The speech engine is not running. Start Scribe with ./setup.sh or npm start.');
+      return false;
+    }
   }
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -200,11 +245,13 @@ async function openMic(): Promise<boolean> {
     fail('Scribe needs permission to use the microphone.');
     return false;
   }
-  ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
-  if (ctx.sampleRate !== SAMPLE_RATE) {
-    fail('This browser cannot record at the rate Whisper needs.');
-    return false;
+  // Record at Whisper's rate where the browser can; otherwise convert on the way in.
+  try {
+    ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
+  } catch {
+    ctx = new AudioContext();
   }
+  const toWhisperRate = makeResampler(ctx.sampleRate, SAMPLE_RATE);
   if (ctx.state === 'suspended') void ctx.resume();
   await ctx.audioWorklet.addModule(new URL('mic-worklet.js', document.baseURI).href);
 
@@ -217,14 +264,14 @@ async function openMic(): Promise<boolean> {
     // Start transcribing at the first short pause; if the speaker stops there, the answer is already on its way.
     onEarly: (samples) => {
       if (samples.length < MIN_SPEECH_SECONDS * SAMPLE_RATE) return;
-      early = { length: samples.length, result: platform.transcribe(encodeWav(samples)).catch(() => null) };
+      early = { length: samples.length, result: platform.transcribe(encodeWav(samples), true).catch(() => null) };
     },
     onInterim: (samples) => {
       // Rough text is shown only while dictating; skip a preview if the last one is still being worked out.
       if (interimBusy || !useDictation.getState().on) return;
       interimBusy = true;
       const mine = chunkNo;
-      platform.transcribe(encodeWav(samples))
+      platform.transcribe(encodeWav(samples), true)
         .then((t) => {
           if (mine === chunkNo && useDictation.getState().hearing) {
             useDictation.setState({ interim: t.text.replace(/\s+/g, ' ').trim() });
@@ -241,16 +288,26 @@ async function openMic(): Promise<boolean> {
       if (samples.length < MIN_SPEECH_SECONDS * SAMPLE_RATE) return useDictation.setState({ interim: '' });
       useDictation.setState((s) => ({ waiting: s.waiting + 1 }));
       const speechEnd = performance.now() - quietSeconds * 1000;
+      const speechStart = performance.now() - (samples.length / SAMPLE_RATE) * 1000;
       // The early transcription covers this utterance if nothing but silence was added since.
       const reuse = paused && speculative && samples.length >= speculative.length && samples.length - speculative.length <= 1.2 * SAMPLE_RATE;
       const wav = encodeWav(samples);
       // Chunks are transcribed one at a time so the text arrives in the order it was said.
       chain = chain.then(async () => {
+        // Plain dictation into the essay can be kept as audio when the Mac is out of reach.
+        const keepable = () => useDictation.getState().on && useDictation.getState().target === 'essay' && !saidToScribe();
+        const keep = async () => {
+          if (await queueAudio(wav, paused)) useStore.getState().setToast({ text: 'Offline. Saved on this device; it will be transcribed when connected.' });
+        };
         try {
-          const heard = (reuse ? await speculative.result : null) ?? (await platform.transcribe(wav));
+          // Earlier recordings are still waiting: this one waits behind them, to keep the order.
+          if (keepable() && hasQueuedAudio()) return await keep();
+          const heard = await hear(wav, reuse ? await speculative.result : null);
           const state = useDictation.getState();
           // Scribe's own voice coming back through the microphone is never taken as the writer's.
-          if (isOwnVoice(heard.text)) return;
+          // Only speech that began while Scribe was talking (or just after) can be its echo:
+          // "yes, delete it" said in answer to Scribe's question is the writer.
+          if (speechStart < quietSince() + ECHO_TAIL_MS && isOwnVoice(heard.text)) return;
           beginTurn(speechEnd);
           mark('transcribed');
           if (state.standby) {
@@ -268,7 +325,8 @@ async function openMic(): Promise<boolean> {
             await heardWhileDictating(heard.words, paused);
           }
         } catch (err) {
-          useDictation.setState({ error: err instanceof Error ? err.message : 'Transcription failed.' });
+          if (err instanceof Unreachable && keepable()) await keep().catch(() => {});
+          else useDictation.setState({ error: err instanceof Error ? err.message : 'Transcription failed.' });
         } finally {
           useDictation.setState((s) => ({ waiting: Math.max(0, s.waiting - 1), interim: s.hearing ? s.interim : '' }));
         }
@@ -279,15 +337,17 @@ async function openMic(): Promise<boolean> {
   const source = ctx.createMediaStreamSource(stream);
   const node = new AudioWorkletNode(ctx, 'mic-capture');
   node.port.onmessage = (e: MessageEvent<Float32Array>) => {
+    const data = toWhisperRate(e.data);
+    if (!data.length) return;
     const speech = useSpeech.getState();
     if (speech.audible) {
       // With interrupting switched off, the microphone is simply ignored while Scribe speaks.
       if (!useSettings.getState().bargeIn) return;
-      watchForBargeIn(e.data);
+      watchForBargeIn(data);
     } else {
-      followRoomNoise(e.data);
+      followRoomNoise(data);
     }
-    chunker?.feed(e.data);
+    chunker?.feed(data);
   };
   source.connect(node);
   return true;

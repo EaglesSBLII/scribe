@@ -64,7 +64,8 @@ if (!isMainThread && workerData && workerData.scribeTts) {
   parentPort.on('message', ({ id, text, voice, speed }) => {
     try {
       const began = performance.now();
-      const audio = engine.generate({ text: String(text).slice(0, 1200), sid: VOICES[voice] ?? VOICES[DEFAULT_VOICE], speed: speed || 1.0 });
+      // enableExternalBuffer off: the Mac app (Electron) does not allow memory handed over from native code, so the samples are copied.
+      const audio = engine.generate({ text: String(text).slice(0, 1200), sid: VOICES[voice] ?? VOICES[DEFAULT_VOICE], speed: speed || 1.0, enableExternalBuffer: false });
       const out = wav(audio.samples, audio.sampleRate);
       parentPort.postMessage({ id, wav: out, seconds: audio.samples.length / audio.sampleRate, ms: performance.now() - began });
     } catch (err) {

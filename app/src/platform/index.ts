@@ -26,7 +26,8 @@ export interface ChatRequest {
 export interface PlatformBridge {
   kind: 'desktop' | 'web';
   asrAvailable(): Promise<boolean>;
-  transcribe(wav: ArrayBuffer): Promise<Transcript>;
+  /** `quick` trades a little accuracy for speed; never used for words that go into the essay. */
+  transcribe(wav: ArrayBuffer, quick?: boolean): Promise<Transcript>;
   /** Names of the models Ollama has on this machine; empty when it is not running. */
   llmModels(): Promise<string[]>;
   /** Unload the model so its next request starts cold. Used before grading, for repeatable scores. */
@@ -37,13 +38,59 @@ export interface PlatformBridge {
   ttsInfo(): Promise<{ available: boolean; voices: string[]; defaultVoice: string }>;
   /** One sentence as a WAV file, synthesized on this machine. */
   ttsSpeak(text: string, voice: string, speed?: number): Promise<ArrayBuffer>;
+  /** Whether this page is on the Mac itself, or on another device that must sign in. */
+  session(): Promise<Session>;
+  login(email: string, password: string): Promise<string>;
+  logout(): Promise<void>;
+  /** One sync round with the master copy on the Mac. Rejects when the Mac cannot be reached. */
+  syncExchange(body: SyncRequest): Promise<SyncResponse>;
+  /** Phone access for an account: switched on by setting a password, on the Mac only. */
+  remoteStatus(email: string): Promise<{ enabled: boolean }>;
+  remoteSet(email: string, password: string): Promise<{ enabled: boolean }>;
+  remoteDisable(email: string): Promise<{ enabled: boolean }>;
+}
+
+export type Session = { local: true } | { local: false; signedIn: boolean; email: string | null };
+
+export interface SyncRecord {
+  coll: string;
+  key: string;
+  value: unknown;
+  updatedAt: number;
+  deleted?: boolean;
+  rev?: number;
+}
+export interface SyncRequest {
+  email: string;
+  since: number;
+  push: SyncRecord[];
+}
+export interface SyncResponse {
+  rev: number;
+  pull: SyncRecord[];
+  accepted: string[];
+}
+
+/** The Mac could not be reached at all (as opposed to answering with an error). */
+export class Unreachable extends Error {}
+
+async function call<T>(path: string, method: string, body?: unknown): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(path, { method, body: body === undefined ? undefined : JSON.stringify(body) });
+  } catch {
+    throw new Unreachable('The Mac cannot be reached.');
+  }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.error ?? 'That did not work.');
+  return data as T;
 }
 
 declare global {
   interface Window {
     scribeBridge?: {
       asrAvailable(): Promise<boolean>;
-      asrTranscribe(wav: ArrayBuffer): Promise<Transcript>;
+      asrTranscribe(wav: ArrayBuffer, quick?: boolean): Promise<Transcript>;
       llmModels(): Promise<string[]>;
       llmUnload(model: string): Promise<boolean>;
       ttsInfo(): Promise<{ available: boolean; voices: string[]; defaultVoice: string }>;
@@ -51,6 +98,10 @@ declare global {
       llmChat(id: string, request: ChatRequest): Promise<string>;
       llmAbort(id: string): void;
       onLlmDelta(listener: (id: string, text: string) => void): () => void;
+      syncExchange?(body: SyncRequest): Promise<SyncResponse>;
+      remoteStatus?(email: string): Promise<{ enabled: boolean }>;
+      remoteSet?(email: string, password: string): Promise<{ enabled: boolean; error?: string }>;
+      remoteDisable?(email: string): Promise<{ enabled: boolean }>;
     };
   }
 }
@@ -67,8 +118,26 @@ const web: PlatformBridge = {
       return false;
     }
   },
-  async transcribe(wav) {
-    const res = await fetch('/api/asr', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: wav });
+  async session() {
+    try {
+      const res = await fetch('/api/session');
+      if (res.ok) return (await res.json()) as Session;
+    } catch { /* offline, or opened without the helper: this device's own copy is used */ }
+    return { local: true };
+  },
+  login: async (email, password) => (await call<{ email: string }>('/api/login', 'POST', { email, password })).email,
+  logout: async () => void (await call('/api/logout', 'POST', {}).catch(() => {})),
+  syncExchange: (body) => call<SyncResponse>('/api/sync', 'POST', body),
+  remoteStatus: (email) => call<{ enabled: boolean }>(`/api/remote?email=${encodeURIComponent(email)}`, 'GET'),
+  remoteSet: (email, password) => call<{ enabled: boolean }>('/api/remote', 'POST', { email, password }),
+  remoteDisable: (email) => call<{ enabled: boolean }>('/api/remote', 'DELETE', { email }),
+  async transcribe(wav, quick) {
+    let res: Response;
+    try {
+      res = await fetch(quick ? '/api/asr?quick=1' : '/api/asr', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: wav });
+    } catch {
+      throw new Unreachable('The Mac cannot be reached.');
+    }
     if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? 'Speech engine failed.');
     return res.json();
   },
@@ -128,7 +197,19 @@ function desktop(bridge: NonNullable<Window['scribeBridge']>): PlatformBridge {
     asrAvailable: () => bridge.asrAvailable(),
     ttsInfo: () => bridge.ttsInfo().catch(() => ({ available: false, voices: [], defaultVoice: 'af_bella' })),
     ttsSpeak: (text, voice, speed) => bridge.ttsSpeak(text, voice, speed),
-    transcribe: (wav) => bridge.asrTranscribe(wav),
+    transcribe: (wav, quick) => bridge.asrTranscribe(wav, quick),
+    session: async () => ({ local: true }),
+    login: async () => { throw new Error('Signing in is for other devices.'); },
+    logout: async () => {},
+    syncExchange: (body) => (bridge.syncExchange ? bridge.syncExchange(body) : Promise.reject(new Unreachable('Sync is not available.'))),
+    remoteStatus: async (email) => (await bridge.remoteStatus?.(email)) ?? { enabled: false },
+    async remoteSet(email, password) {
+      const done = await bridge.remoteSet?.(email, password);
+      if (!done) throw new Error('Phone access is not available in this build.');
+      if (done.error) throw new Error(done.error);
+      return done;
+    },
+    remoteDisable: async (email) => (await bridge.remoteDisable?.(email)) ?? { enabled: false },
     llmModels: () => bridge.llmModels().catch(() => []),
     llmUnload: async (model) => void (await bridge.llmUnload(model).catch(() => false)),
     async llmChat(request, onDelta, signal) {

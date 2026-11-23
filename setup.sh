@@ -67,6 +67,20 @@ else
   mv "$MODELS/$WHISPER_MODEL.part" "$MODELS/$WHISPER_MODEL"
 fi
 
+say "Checking the voice (Kokoro, text to speech)"
+TTS_DIR="$MODELS/tts"
+if [ -s "$TTS_DIR/kokoro-en-v0_19/model.onnx" ]; then
+  echo "The Kokoro voice is already downloaded."
+else
+  echo "Downloading the Kokoro voice (about 305 MB, once)"
+  mkdir -p "$TTS_DIR"
+  curl -L --fail --progress-bar -o "$TTS_DIR/kokoro.tar.bz2" \
+    "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-en-v0_19.tar.bz2" \
+    || fail "The voice could not be downloaded. Scribe works without it, but stays silent."
+  tar -xjf "$TTS_DIR/kokoro.tar.bz2" -C "$TTS_DIR" || fail "The voice download could not be unpacked."
+  rm -f "$TTS_DIR/kokoro.tar.bz2"
+fi
+
 say "Checking Ollama (the local counselor model)"
 command -v ollama >/dev/null || fail "Ollama is needed. Install it from https://ollama.com/download and run this again."
 if ! curl -s -m 3 http://127.0.0.1:11434/api/version >/dev/null; then

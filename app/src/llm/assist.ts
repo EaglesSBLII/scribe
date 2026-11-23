@@ -89,8 +89,7 @@ export function looksLikeEditRequest(text: string): boolean {
 async function ask<T>(system: string, user: string, format: unknown, limit: number): Promise<T | null> {
   try {
     const raw = await platform.llmChat({
-      model: useSettings.getState().commandModel,
-      options: { temperature: 0, seed: 7, num_predict: limit },
+      model: useSettings.getState().commandModel || useSettings.getState().llmModel,      options: { temperature: 0, seed: 7, num_predict: limit },
       format,
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
     });

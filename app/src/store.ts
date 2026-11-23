@@ -29,6 +29,7 @@ import { removeSegment, resolve, type CommandContext, type SegmentPart } from '.
 import { speak, stopSpeaking } from './speech';
 import { countWords } from './doc/segment';
 import { flushPending } from './editorBus';
+import { hashOf, judgeEssay, type Agreed } from './sync/engine';
 
 export interface ConfirmRequest {
   title: string;
@@ -147,6 +148,14 @@ interface State {
 
   closeConfirm(confirmed: boolean): Promise<void>;
   setToast(t: Toast | null): void;
+
+  /** On another device, after signing in to the Mac: open (or make) this device's copy of the account. */
+  signInAs(email: string): Promise<void>;
+  /**
+   * Take in essays that arrived from the Mac's master copy. Returns the ids of
+   * essays where this device's own newer changes were kept instead.
+   */
+  absorbEssays(incoming: { row: EssayRow; agreed?: Agreed }[], removed: string[]): Promise<string[]>;
 }
 
 // Writes are queued so they reach the database in the order they happened.
@@ -960,6 +969,62 @@ export const useStore = create<State>((set, get) => {
 
     setToast(toast) {
       set({ toast });
+    },
+
+    async signInAs(email) {
+      await createAccount(email);
+      await get().init();
+    },
+
+    async absorbEssays(incoming, removed) {
+      flushPending();
+      await queue;
+      const kept: string[] = [];
+      const fingerprint = ({ accountId: _a, ...rest }: EssayRow) => hashOf('essays', rest);
+      for (const { row, agreed } of incoming) {
+        const mine = get().essays.find((e) => e.id === row.id) ?? null;
+        const verdict = judgeEssay(
+          mine ? { hash: fingerprint(mine), updatedAt: mine.updatedAt } : null,
+          agreed,
+          { hash: fingerprint(row), updatedAt: row.updatedAt },
+        );
+        if (verdict === 'keep-mine') {
+          kept.push(row.id);
+          continue;
+        }
+        if (mine && verdict === 'take-keep-version') addVersion(mine, 'Before an update from another device');
+        const isCurrent = row.id === get().currentId;
+        // In the open essay the new text arrives as an edit, so it can be undone like any other.
+        if (mine && isCurrent && hashOf('doc', mine.doc) !== hashOf('doc', row.doc)) {
+          get().edit({ k: 'replaceDoc', doc: row.doc }, { confirmed: true });
+        }
+        const others = get().essays.filter((e) => e.id !== row.id);
+        set({ essays: [...others, row].sort((a, b) => a.order - b.order), docRev: get().docRev + (isCurrent ? 1 : 0) });
+        persist(() => db.essays.put(row));
+      }
+      for (const id of removed) {
+        if (!get().essays.some((e) => e.id === id)) continue;
+        const wasCurrent = get().currentId === id;
+        set({ essays: get().essays.filter((e) => e.id !== id) });
+        if (wasCurrent) {
+          const next = get().essays.find((e) => !e.archived);
+          if (next) await get().openEssay(next.id);
+          else set({ currentId: null, undoStack: [], redoStack: [] });
+        }
+        persist(() =>
+          db.transaction('rw', db.essays, db.ops, db.versions, async () => {
+            await db.essays.delete(id);
+            await db.ops.where('essayId').equals(id).delete();
+            await db.versions.where('essayId').equals(id).delete();
+          }),
+        );
+      }
+      if (!get().currentId) {
+        const first = get().essays.find((e) => !e.archived);
+        if (first) await get().openEssay(first.id);
+      }
+      await queue;
+      return kept;
     },
   };
 });

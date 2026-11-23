@@ -3,8 +3,12 @@ import { create } from 'zustand';
 import { db } from './db/schema';
 
 export const DEFAULT_MODEL = 'qwen3.5:9b';
-/** A small, fast model for turning a spoken request into a command. */
-export const DEFAULT_COMMAND_MODEL = 'qwen3.5:4b';
+/**
+ * The model that turns a spoken request into a command. Empty means "the
+ * counselor's model", so only one model is held in memory; a smaller one can
+ * be chosen in Settings.
+ */
+export const DEFAULT_COMMAND_MODEL = '';
 
 /** How much the counselor speaks up. */
 export type CounselorMode = 'draft' | 'coach' | 'conversation';

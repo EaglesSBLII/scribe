@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from './store';
 import { flushPending } from './editorBus';
 import { Onboarding } from './features/Onboarding';
@@ -18,6 +18,10 @@ import { MemoryScreen } from './features/MemoryScreen';
 import { useMemory } from './memory/store';
 import { ConfirmDialog } from './features/ConfirmDialog';
 import { ToastBar } from './features/ToastBar';
+import { SignIn } from './features/SignIn';
+import { useUi } from './features/ui';
+import { platform } from './platform';
+import { startSync } from './sync';
 
 export function App() {
   const ready = useStore((s) => s.ready);
@@ -28,8 +32,18 @@ export function App() {
   const memoryOpen = useMemory((s) => s.screenOpen);
   const settingsOpen = useSettings((s) => s.screenOpen);
 
+  const navOpen = useUi((s) => s.navOpen);
+  // On another device, nothing is shown until it has signed in to the Mac.
+  const [mustSignIn, setMustSignIn] = useState(false);
+
   useEffect(() => {
-    void useStore.getState().init();
+    void (async () => {
+      const session = await platform.session();
+      if (!session.local && !session.signedIn) return setMustSignIn(true);
+      if (!session.local && session.email) await useStore.getState().signInAs(session.email);
+      else await useStore.getState().init();
+      startSync(!session.local);
+    })();
     startCoach();
   }, []);
 
@@ -71,6 +85,17 @@ export function App() {
     };
   }, [account, wakeWord]);
 
+  if (mustSignIn) {
+    return (
+      <SignIn
+        onSignedIn={async (email) => {
+          await useStore.getState().signInAs(email);
+          startSync(true);
+          setMustSignIn(false);
+        }}
+      />
+    );
+  }
   if (!ready) return null;
   if (!account) return <Onboarding />;
 
@@ -85,6 +110,7 @@ export function App() {
       ) : (
         <>
           <Sidebar />
+          {navOpen && <button aria-label="Close the essay list" onClick={() => useUi.getState().setNavOpen(false)} className="fixed inset-0 z-30 bg-black/30 md:hidden" />}
           <Editor />
           {counselorOpen && <CounselorPanel />}
           {historyOpen && <History />}

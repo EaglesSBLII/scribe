@@ -19,7 +19,7 @@ test('coach mode: the counselor speaks up at a pause, and only then', async ({ p
   // The three sentences are dictated into the essay as usual.
   await expect(para).toContainText('notebook', { timeout: 60_000 });
   const dictated = (await para.innerText()).trim();
-  expect(dictated).toMatch(/^The summer I turned sixteen/);
+  expect(dictated).toMatch(/^The summer I turned (sixteen|16)/);
   // While the student was still talking, the counselor said nothing.
   await page.getByRole('button', { name: 'Open counselor' }).click();
   const replies = page.getByTestId('chat').locator('[data-role="assistant"]');

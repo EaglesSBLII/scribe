@@ -49,6 +49,15 @@ describe('recognising its own voice', () => {
     expect(isOwnVoice('Wait, hold on a second.')).toBe(false);
     expect(isOwnVoice('Yes.')).toBe(false);
   });
+
+  it('does not drop a short question because its words are scattered through a long answer', () => {
+    rememberSpoken('The opening is strong, but is it clear why the summer mattered to you? I think the middle drags a little.');
+    rememberSpoken('Your ending lands on the notebook, which is the right image. Say what changed in you after that.');
+    expect(isOwnVoice('Is the ending clear?')).toBe(false);
+    expect(isOwnVoice('What is missing from this essay?')).toBe(false);
+    // The same words as one stretch of what was said are still an echo.
+    expect(isOwnVoice('Your ending lands on the notebook.')).toBe(true);
+  });
 });
 
 describe('the spoken persona', () => {
@@ -100,5 +109,22 @@ describe('starting transcription early', () => {
     for (const part of [tone(1), quiet(0.3), tone(1), quiet(1)]) for (let i = 0; i < part.length; i += 800) chunker.feed(part.slice(i, i + 800));
     expect(early).toBe(2);
     expect(chunks).toBe(1);
+  });
+});
+
+describe('how much of the conversation the model is shown', () => {
+  it('keeps the start of the window fixed for a block of turns, so the model does not re-read it every turn', async () => {
+    const { recentHistory } = await import('../../src/llm/counselor');
+    const upTo = (n: number) => Array.from({ length: n }, (_, i) => i);
+    expect(recentHistory(upTo(24))).toHaveLength(24);
+    expect(recentHistory(upTo(25))[0]).toBe(12);
+    expect(recentHistory(upTo(36))[0]).toBe(12);
+    expect(recentHistory(upTo(37))[0]).toBe(24);
+    for (let n = 0; n < 200; n++) {
+      const shown = recentHistory(upTo(n));
+      expect(shown.length).toBeLessThanOrEqual(24);
+      if (n >= 12) expect(shown.length).toBeGreaterThanOrEqual(12);
+      expect(shown.at(-1)).toBe(n ? n - 1 : undefined);
+    }
   });
 });

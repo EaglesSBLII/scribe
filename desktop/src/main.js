@@ -15,6 +15,12 @@ const ollama = require(path.join(libDir, 'ollama.js'));
 const whisper = createWhisper(resources);
 const { createTts } = require(path.join(libDir, 'tts.js'));
 const tts = createTts(resources);
+// The master copy for syncing, and sign-in for a phone (see local/remote.js).
+const { createRemote } = require(path.join(libDir, 'remote.js'));
+const { createHandler, listen } = require(path.join(libDir, 'server.js'));
+const PHONE_PORT = Number(process.env.SCRIBE_PORT || 4310);
+let remote = null;
+let phoneServer = null;
 let win = null;
 
 function indexFile() {
@@ -58,9 +64,9 @@ app.whenReady().then(() => {
     // Hand the page the bytes of the WAV file.
     return audio.wav.buffer.slice(audio.wav.byteOffset, audio.wav.byteOffset + audio.wav.byteLength);
   });
-  ipcMain.handle('asr:transcribe', async (_e, wav) => {
+  ipcMain.handle('asr:transcribe', async (_e, wav, quick) => {
     if (process.platform === 'darwin') await systemPreferences.askForMediaAccess('microphone').catch(() => false);
-    return whisper.transcribe(Buffer.from(wav));
+    return whisper.transcribe(Buffer.from(wav), { quick: quick === true });
   });
 
   // The counselor model: Ollama on this machine, reached from the main process only.
@@ -78,6 +84,29 @@ app.whenReady().then(() => {
   });
   ipcMain.on('llm:abort', (_e, id) => running.get(id)?.abort());
 
+  // Syncing and phone access. The window talks to the store directly; a phone
+  // goes through a server that listens on this Mac only and requires sign-in.
+  remote = createRemote(path.join(app.getPath('userData'), 'sync'));
+  ipcMain.handle('sync:exchange', (_e, body) => remote.exchange(body?.email, body));
+  ipcMain.handle('remote:status', (_e, email) => remote.status(email));
+  ipcMain.handle('remote:set', (_e, email, password) => {
+    try {
+      remote.setPassword(email, password);
+      return remote.status(email);
+    } catch (err) {
+      return { enabled: false, error: err.message };
+    }
+  });
+  ipcMain.handle('remote:disable', (_e, email) => {
+    remote.disable(email);
+    return remote.status(email);
+  });
+  listen(createHandler({ dist: path.dirname(indexFile()), whisper, tts, ollama, remote }), PHONE_PORT).then(
+    (server) => { phoneServer = server; },
+    // The port is taken when Scribe is also running in the browser; that copy serves the phone instead.
+    (err) => console.error(`Phone access is not being served by the app: ${err.message}`),
+  );
+
   createWindow();
   // Load the speech model shortly after launch so the first sentence is not slow.
   if (whisper.available()) setTimeout(() => whisper.start().catch((e) => console.error(e.message)), 1500);
@@ -86,6 +115,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => app.quit());
 app.on('will-quit', () => {
+  phoneServer?.close();
   whisper.stop();
   tts.stop();
 });

@@ -160,12 +160,25 @@ export function playbackAge(): number {
   return useSpeech.getState().audible ? performance.now() - playbackStartedAt : 0;
 }
 
+// When Scribe last stopped being heard. Anything said after that cannot be its echo.
+let wentQuietAt = 0;
+useSpeech.subscribe((now, before) => {
+  if (before.audible && !now.audible) wentQuietAt = performance.now();
+});
+
+/** The moment Scribe's voice last stopped; Infinity while it is still speaking. */
+export function quietSince(): number {
+  return useSpeech.getState().audible ? Infinity : wentQuietAt;
+}
+
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
 
 /**
  * Is this transcript Scribe's own voice coming back through the microphone?
- * True when most of its words appear, in order, in what Scribe said in the
- * last little while (or is saying now).
+ * True when most of its words appear, in order and close together, in what
+ * Scribe said in the last little while (or is saying now). An echo is one
+ * stretch of Scribe's speech; a short question that merely shares scattered
+ * words with a long answer is the writer.
  */
 export function isOwnVoice(transcript: string): boolean {
   const words = norm(transcript);
@@ -174,17 +187,24 @@ export function isOwnVoice(transcript: string): boolean {
   while (spoken.length && now - spoken[0].at > REMEMBER_MS) spoken.shift();
   const said = norm([...spoken.map((s) => s.text), ...queue.map((q) => q.text)].join(' '));
   if (said.length === 0) return false;
-  // Longest common subsequence, as a share of the transcript.
-  const row = new Array<number>(said.length + 1).fill(0);
-  for (const w of words) {
-    let diagonal = 0;
-    for (let j = 1; j <= said.length; j++) {
-      const up = row[j];
-      row[j] = w === said[j - 1] ? diagonal + 1 : Math.max(row[j], row[j - 1]);
-      diagonal = up;
+  // Slide a window a little longer than the transcript along what was said.
+  const span = Math.ceil(words.length * 1.5);
+  const need = words.length * 0.7;
+  for (let start = 0; start < Math.max(1, said.length - span + 1); start++) {
+    const stretch = said.slice(start, start + span);
+    // Longest common subsequence of the transcript and this stretch.
+    const row = new Array<number>(stretch.length + 1).fill(0);
+    for (const w of words) {
+      let diagonal = 0;
+      for (let j = 1; j <= stretch.length; j++) {
+        const up = row[j];
+        row[j] = w === stretch[j - 1] ? diagonal + 1 : Math.max(row[j], row[j - 1]);
+        diagonal = up;
+      }
     }
+    if (row[stretch.length] >= need) return true;
   }
-  return row[said.length] / words.length >= 0.7;
+  return false;
 }
 
 /** For tests: note a sentence as spoken without playing it. */

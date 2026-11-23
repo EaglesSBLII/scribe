@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { ArrowDown, ArrowUp, Ear, History as HistoryIcon, MessageCircle, Mic, MicOff, Redo2, Save, Sigma, Trash2, Undo2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Ear, History as HistoryIcon, Menu, MessageCircle, Mic, MicOff, Redo2, Save, Sigma, Trash2, Undo2 } from 'lucide-react';
 import { kindOf } from '../paper/layout';
 import { RichView } from './RichView';
 import { useCounselor } from '../llm/counselor';
@@ -13,6 +13,8 @@ import { setWakeWord, toggleDictation, useDictation } from '../dictation/session
 import { useSettings } from '../settings';
 import { clock } from './time';
 import { CommandChip } from './CommandChip';
+import { useUi } from './ui';
+import { useSync } from '../sync';
 
 const TYPING_SAVE_MS = 500;
 
@@ -148,7 +150,7 @@ function ParagraphBlock({ para, index, count, equationNo }: { para: Paragraph; i
 
   return (
     <div className="group relative flex gap-3" data-testid="paragraph">
-      <div className="w-8 shrink-0 select-none pt-1.5 text-right text-xs text-muted">P{n}</div>
+      <div className="hidden w-8 shrink-0 select-none pt-1.5 text-right text-xs text-muted sm:block">P{n}</div>
       <div className="min-w-0 flex-1">
         <div
           ref={ref}
@@ -182,7 +184,7 @@ function ParagraphBlock({ para, index, count, equationNo }: { para: Paragraph; i
           </p>
         )}
       </div>
-      <div className="flex w-20 shrink-0 items-start gap-0.5 pt-1 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+      <div className="hidden w-20 shrink-0 items-start gap-0.5 pt-1 opacity-0 focus-within:opacity-100 group-hover:opacity-100 md:flex">
         <IconButton label={`Move paragraph ${n} up`} disabled={index === 0} onClick={() => store.moveParagraph(para.id, -1)}>
           <ArrowUp size={14} />
         </IconButton>
@@ -262,6 +264,9 @@ export function Editor() {
   if (!essay) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-4 text-muted">
+        <button onClick={() => useUi.getState().setNavOpen(true)} className="rounded-md border border-line px-3 py-2 text-sm md:hidden">
+          Show essays
+        </button>
         <p>Create an essay to start writing.</p>
         <button onClick={() => void store.createEssay()} className="rounded-md bg-accent px-3 py-2 font-medium text-white">
           New essay
@@ -276,14 +281,17 @@ export function Editor() {
 
   return (
     <main className="flex min-w-0 flex-1 flex-col">
-      <header className="flex items-center gap-3 border-b border-line px-6 py-3">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-3 py-3 md:px-6">
+        <button aria-label="Show essays" onClick={() => useUi.getState().setNavOpen(true)} className="rounded p-1 text-muted md:hidden">
+          <Menu size={20} />
+        </button>
         <input
           key={`${essay.id}:${essay.title}`}
           aria-label="Essay title"
           defaultValue={essay.title}
           onBlur={(e) => store.renameEssay(essay.id, e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          className="min-w-0 flex-1 bg-transparent font-serif text-2xl"
+          className="min-w-0 flex-1 basis-40 bg-transparent font-serif text-2xl"
         />
         <DictationButton />
         <button
@@ -333,11 +341,12 @@ export function Editor() {
           <MessageCircle size={18} />
         </IconButton>
       </header>
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-line px-6 py-2">
+      <SyncNote />
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-line px-3 py-2 md:px-6">
         <Stepper essay={essay} />
         <PromptPicker essay={essay} />
       </div>
-      <div className="relative flex-1 overflow-y-auto px-6 py-10">
+      <div className="relative flex-1 overflow-y-auto px-4 pb-32 pt-6 md:px-6 md:py-10">
         <CommandChip />
         <div className="mx-auto max-w-3xl space-y-5">
           {essay.doc.paragraphs.map((p, i) => (
@@ -345,6 +354,38 @@ export function Editor() {
           ))}
         </div>
       </div>
+      <BigMic />
     </main>
+  );
+}
+
+/** On a phone: one large button to start and stop dictating, for when the wake word is not in use. */
+function BigMic() {
+  const on = useDictation((s) => s.on && s.target === 'essay');
+  const hearing = useDictation((s) => s.hearing);
+  return (
+    <button
+      data-testid="big-mic"
+      aria-label={on ? 'Stop dictating' : 'Dictate'}
+      aria-pressed={on}
+      onClick={() => toggleDictation('essay')}
+      className={`fixed bottom-6 left-1/2 z-20 flex h-20 w-20 -translate-x-1/2 items-center justify-center rounded-full text-white shadow-xl md:hidden ${on ? 'bg-danger' : 'bg-accent'} ${hearing ? 'ring-4 ring-danger/30' : ''}`}
+    >
+      {on ? <MicOff size={34} /> : <Mic size={34} />}
+    </button>
+  );
+}
+
+/** Shown only when it matters: the Mac is out of reach, or recordings are waiting for it. */
+function SyncNote() {
+  const { online, remote, queued } = useSync();
+  if (queued === 0 && (online || !remote)) return null;
+  const waiting = queued === 1 ? '1 recording is saved' : `${queued} recordings are saved`;
+  return (
+    <div data-testid="sync-note" role="status" className="border-b border-line bg-[#f6ecc9] px-3 py-1.5 text-sm md:px-6">
+      {queued > 0
+        ? `${online ? 'Connected' : 'Offline'}: ${waiting} on this device and will be transcribed ${online ? 'now' : 'when connected'}.`
+        : 'Offline. You can keep dictating; recordings are saved on this device and transcribed when connected.'}
+    </div>
   );
 }

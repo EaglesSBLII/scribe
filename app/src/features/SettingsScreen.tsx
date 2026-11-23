@@ -5,6 +5,8 @@ import { platform } from '../platform';
 import { speak } from '../speech';
 import { setWakeWord } from '../dictation/session';
 import { EARCONS, playEarcon } from '../voice/earcons';
+import { useStore } from '../store';
+import { forgetRemote, useSync } from '../sync';
 
 const MODES: { id: CounselorMode; name: string; what: string }[] = [
   { id: 'draft', name: 'Draft (quiet)', what: 'Only reacts to commands and to questions you ask by name.' },
@@ -100,9 +102,10 @@ export function SettingsScreen() {
               ))}
             </select>
           </Row>
-          <Row label="Command model" hint="A small, fast model that reads spoken edit requests. It never writes essay text.">
+          <Row label="Command model" hint="Reads spoken edit requests. It never writes essay text. A second model uses more memory.">
             <select aria-label="Command model" className={select} value={s.commandModel} onChange={(e) => void s.set('commandModel', e.target.value)}>
-              {withCurrent(models, s.commandModel).map((m) => (
+              <option value="">Same as counselor</option>
+              {(s.commandModel ? withCurrent(models, s.commandModel) : models).map((m) => (
                 <option key={m}>{m}</option>
               ))}
             </select>
@@ -141,7 +144,83 @@ export function SettingsScreen() {
             );
           })}
         </section>
+
+        <PhoneAccess />
       </div>
     </div>
+  );
+}
+
+/** On the Mac: let a phone use this Scribe. On the phone: sign out. */
+function PhoneAccess() {
+  const email = useStore((st) => st.account?.email ?? '');
+  const remote = useSync((st) => st.remote);
+  const [enabled, setEnabled] = useState(false);
+  const [password, setPassword] = useState('');
+  const [note, setNote] = useState('');
+
+  useEffect(() => {
+    if (!remote && email) void platform.remoteStatus(email).then((r) => setEnabled(r.enabled)).catch(() => {});
+  }, [remote, email]);
+
+  if (remote) {
+    return (
+      <section aria-label="This device" className="divide-y divide-line">
+        <h3 className="pb-1 font-semibold">This device</h3>
+        <Row label="Signed in to your Mac" hint="Speech, the counselor and the voice all run on the Mac. Your essays are also kept here, so you can keep dictating when the Mac is out of reach. A web app cannot listen in the background on an iPhone: keep Scribe open on screen while you talk.">
+          <button
+            onClick={() => void platform.logout().then(() => { forgetRemote(); window.location.reload(); })}
+            className="rounded border border-line bg-white px-3 py-1 text-sm"
+          >
+            Sign out
+          </button>
+        </Row>
+      </section>
+    );
+  }
+
+  async function turnOn() {
+    setNote('');
+    try {
+      setEnabled((await platform.remoteSet(email, password)).enabled);
+      setPassword('');
+      setNote('Saved. Use this email and password to sign in on your phone.');
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : 'That did not work.');
+    }
+  }
+
+  return (
+    <section aria-label="Phone access" className="divide-y divide-line">
+      <h3 className="pb-1 font-semibold">Phone access</h3>
+      <Row
+        label={enabled ? 'On: your phone can sign in' : 'Off'}
+        hint="Lets your own phone use this Mac’s Scribe over a private connection. The Mac is never opened to the internet, and the phone must sign in with this password. See docs/phone-setup.md."
+      >
+        <span className="flex flex-wrap items-center gap-2">
+          <input
+            type="password"
+            aria-label="Phone access password"
+            autoComplete="new-password"
+            placeholder={enabled ? 'New password' : 'Choose a password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-44 rounded border border-line bg-white px-2 py-1 text-sm"
+          />
+          <button onClick={() => void turnOn()} className="rounded border border-line bg-white px-3 py-1 text-sm">
+            {enabled ? 'Change password' : 'Turn on'}
+          </button>
+          {enabled && (
+            <button
+              onClick={() => void platform.remoteDisable(email).then((r) => { setEnabled(r.enabled); setNote('Phone access is off. Every device was signed out.'); })}
+              className="rounded border border-line bg-white px-3 py-1 text-sm text-danger"
+            >
+              Turn off
+            </button>
+          )}
+        </span>
+      </Row>
+      {note && <p role="status" className="py-2 text-sm text-muted">{note}</p>}
+    </section>
   );
 }

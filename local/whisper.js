@@ -1,10 +1,11 @@
 // Runs whisper.cpp's whisper-server on this machine and talks to it over 127.0.0.1.
 // Used by both the web helper (server.js) and the desktop app's main process.
 //
-// Two copies run side by side from the same model file:
-//   full   for anything long (dictation)
-//   quick  with a shorter audio window, about three times faster, for short
-//          utterances: the wake word, commands and questions to the counselor
+// One copy of the model, asked in one of two ways:
+//   full   exact; used for everything that becomes essay text
+//   quick  with a shorter audio window, about three times faster; used only
+//          when asked for, on short clips said to Scribe (the wake word,
+//          answers, questions to the counselor), and checked before it is trusted
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const net = require('node:net');
@@ -13,7 +14,7 @@ const path = require('node:path');
 const DEFAULT_MODEL = 'ggml-large-v3-turbo-q5_0.bin';
 const COMMAND_HINT =
   'Jarvis, Scribe voice commands: Insert, Delete, Move paragraph, Replace, Undo, Read back, Word count, New paragraph.';
-// The quick copy listens to a 10-second window; clips longer than this go to the full one.
+// The quick way listens to a 10-second window; clips longer than this are heard in full.
 const QUICK_MAX_SECONDS = 8;
 const QUICK_AUDIO_CTX = '512';
 
@@ -29,7 +30,7 @@ function freePort() {
 }
 
 /** One whisper-server process. */
-function instance(bin, model, extraArgs) {
+function instance(bin, model) {
   let child = null;
   let ready = null;
   let base = '';
@@ -39,7 +40,7 @@ function instance(bin, model, extraArgs) {
     ready = (async () => {
       const port = await freePort();
       base = `http://127.0.0.1:${port}`;
-      child = spawn(bin, ['-m', model, '--host', '127.0.0.1', '--port', String(port), '-l', 'en', '-sns', ...extraArgs], {
+      child = spawn(bin, ['-m', model, '--host', '127.0.0.1', '--port', String(port), '-l', 'en', '-sns'], {
         stdio: ['ignore', 'ignore', 'pipe'],
       });
       let stderr = '';
@@ -69,7 +70,7 @@ function instance(bin, model, extraArgs) {
     return ready;
   }
 
-  async function infer(wav) {
+  async function infer(wav, audioCtx = '0') {
     await start();
     const form = new FormData();
     form.append('file', new Blob([wav], { type: 'audio/wav' }), 'audio.wav');
@@ -77,6 +78,7 @@ function instance(bin, model, extraArgs) {
     form.append('temperature', '0.0');
     // A vocabulary hint, so a command word that opens a sentence is not dropped.
     form.append('prompt', COMMAND_HINT);
+    form.append('audio_ctx', audioCtx);
     const res = await fetch(base + '/inference', { method: 'POST', body: form });
     if (!res.ok) throw new Error(`Whisper failed (${res.status}).`);
     return res.json();
@@ -91,11 +93,23 @@ function instance(bin, model, extraArgs) {
   return { start, infer, stop };
 }
 
+/** A transcript the quick copy should not be trusted on: a repeated sentence, or more words than fit in the clip. */
+function looksWrong(text, seconds) {
+  const sentences = text
+    .split(/[.!?\n]+/)
+    .map((s) => s.toLowerCase().replace(/[^a-z0-9' ]/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  for (let i = 1; i < sentences.length; i++) {
+    if (sentences[i] === sentences[i - 1] && sentences[i].split(' ').length >= 2) return true;
+  }
+  const count = text.trim().split(/\s+/).filter(Boolean).length;
+  return count > 3 + seconds * 6;
+}
+
 function createWhisper(resourcesDir, modelName = process.env.SCRIBE_WHISPER_MODEL || DEFAULT_MODEL) {
   const bin = path.join(resourcesDir, 'bin', 'whisper-server');
   const model = path.join(resourcesDir, 'models', modelName);
-  const full = instance(bin, model, []);
-  const quick = instance(bin, model, ['-ac', QUICK_AUDIO_CTX]);
+  const engine = instance(bin, model);
 
   function available() {
     return fs.existsSync(bin) && fs.existsSync(model);
@@ -103,14 +117,20 @@ function createWhisper(resourcesDir, modelName = process.env.SCRIBE_WHISPER_MODE
 
   async function start() {
     if (!available()) throw new Error('Whisper is not installed. Run ./setup.sh first.');
-    await Promise.all([full.start(), quick.start()]);
+    await engine.start();
   }
 
   /** wav: Buffer of 16 kHz mono WAV. Returns { text, words: [{ text, start, end }] }. */
-  async function transcribe(wav) {
+  async function transcribe(wav, { quick: wantQuick = false } = {}) {
     if (!available()) throw new Error('Whisper is not installed. Run ./setup.sh first.');
     const seconds = Math.max(0, wav.length - 44) / 32000;
-    const data = await (seconds <= QUICK_MAX_SECONDS ? quick : full).infer(wav);
+    let data = null;
+    if (wantQuick && seconds <= QUICK_MAX_SECONDS) {
+      data = await engine.infer(wav, QUICK_AUDIO_CTX);
+      // The quick way sometimes repeats itself on a short clip; then it is heard in full.
+      if (looksWrong(data.text ?? '', seconds)) data = null;
+    }
+    data ??= await engine.infer(wav);
     const words = [];
     for (const seg of data.segments ?? []) {
       if (Array.isArray(seg.words) && seg.words.length) {
@@ -132,11 +152,10 @@ function createWhisper(resourcesDir, modelName = process.env.SCRIBE_WHISPER_MODE
   }
 
   function stop() {
-    full.stop();
-    quick.stop();
+    engine.stop();
   }
 
   return { available, start, transcribe, stop, model: modelName };
 }
 
-module.exports = { createWhisper };
+module.exports = { createWhisper, looksWrong };

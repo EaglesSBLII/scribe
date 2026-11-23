@@ -13,5 +13,5 @@ if (!fs.existsSync(path.join(dist, 'index.html'))) {
 }
 fs.cpSync(dist, path.join(desktop, 'web'), { recursive: true, force: true });
 fs.mkdirSync(path.join(desktop, 'lib'), { recursive: true });
-for (const file of ['whisper.js', 'ollama.js', 'tts.js']) fs.copyFileSync(path.join(local, file), path.join(desktop, 'lib', file));
+for (const file of ['whisper.js', 'ollama.js', 'tts.js', 'remote.js', 'server.js']) fs.copyFileSync(path.join(local, file), path.join(desktop, 'lib', file));
 console.log('Copied app/dist to desktop/web and the local services to desktop/lib');

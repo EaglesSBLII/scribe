@@ -1,7 +1,7 @@
 {
   "name": "@scribe/desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Scribe for Mac",
   "author": "Scribe",
   "main": "src/main.js",
@@ -10,6 +10,9 @@
     "predist": "node scripts/prepare.js",
     "dist": "electron-builder --mac dmg --arm64",
     "smoke": "playwright test tests"
+  },
+  "dependencies": {
+    "sherpa-onnx-node": "1.13.8"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",

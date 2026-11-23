@@ -2,7 +2,9 @@
 
 A free, local, voice-first essay writing app. You talk; Scribe writes down what you said, removes the "um"s, adds punctuation and follows spoken commands. It never writes for you: the only things it adds are punctuation, capitals and paragraph breaks.
 
-Everything runs on your Mac. Speech-to-text is [whisper.cpp](https://github.com/ggml-org/whisper.cpp); advice (from build phase 5) comes from a local model through [Ollama](https://ollama.com). There are no accounts on a server, no API keys and no usage limits.
+Everything runs on your Mac. Speech-to-text is [whisper.cpp](https://github.com/ggml-org/whisper.cpp); advice comes from a local model through [Ollama](https://ollama.com); the voice is [Kokoro](https://github.com/hexgrad/kokoro), run with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx). There are no accounts on a server, no API keys and no usage limits.
+
+Say **“Jarvis”** to wake it, talk to the counselor out loud and hear it answer, and use it from your iPhone with the Mac as the brain ([docs/phone-setup.md](docs/phone-setup.md)).
 
 **Build status:** all nine build phases are done: accounts, essays, editor, autosave, undo, version history, dictation, voice edit commands, word counts, counselor, the four-stage process, export, college database, grading, personal memory, math and physics mode, and formatting learned from sample papers.
 
@@ -42,8 +44,9 @@ It will:
 1. check Node (20 or newer),
 2. install the JavaScript packages,
 3. build `whisper-server` from source (installing a private copy of cmake in `.tools/` if you have none) and download the speech model (about 575 MB),
-4. check Ollama is installed and running, and download the counselor model if it is missing,
-5. build Scribe and open it at http://127.0.0.1:4310.
+4. download the Kokoro voice (about 305 MB),
+5. check Ollama is installed and running, and download the counselor model if it is missing,
+6. build Scribe and open it at http://127.0.0.1:4310.
 
 Options: `./setup.sh --no-run` sets up without starting; `./setup.sh --desktop` starts the Mac app instead of the browser version.
 
@@ -67,12 +70,12 @@ Setup is the only time the network is used. After that Scribe refuses to connect
 | `npm run dist:mac` | Builds `desktop/dist-electron/Scribe-<version>-arm64.dmg` |
 | `npm run dev` | Web app with live reload; run `npm start` alongside it for dictation |
 
-The browser version and the Mac app each keep their own copy of your essays (as Chilaka does). They do not share data.
+The browser version and the Mac app each keep their own copy of your essays (as Chilaka does). Each also keeps a master copy for syncing with a phone: `data/` in this folder for `npm start`, the app's own data folder for the Mac app.
 
 ## Hardware
 
 - Apple Silicon Mac (built and tested on an M5 with 16 GB of memory).
-- About 9 GB of free disk: 0.6 GB for the speech model, 7.6 GB for the default counselor model.
+- About 9.5 GB of free disk: 0.6 GB for the speech model, 0.4 GB for the voice, 7.6 GB for the default counselor model.
 - 16 GB of memory is recommended to run the speech model and a 9B counselor model together. With 8 GB, use `ggml-small.en.bin` and a smaller Ollama model.
 - A microphone.
 
@@ -126,6 +129,28 @@ Paragraphs and sentences are numbered from 1; the editor shows P1, P2 and so on.
 Word counts are computed in code, never by a model: anything between spaces that contains a letter or digit is one word, the way word processors count. A dash standing on its own is not counted.
 
 If you phrase an edit request another way ("take out the second sentence"), Scribe asks the local model to restate it in the grammar above, checks that restatement in code, and then shows it like any other command. The model never supplies the words that go into the essay.
+
+## Hands-free: the wake word
+
+Switch on **Jarvis** in the toolbar (or in Settings). The microphone stays open and Scribe waits; nothing said before the name is kept or written down.
+
+- **“Jarvis”** on its own wakes it: a short sound, “I'm listening”, and dictation starts. “Hey Jarvis” works too but is not needed.
+- **“Jarvis, …”** while dictating is a command or a question, never essay text: “Jarvis, delete the last sentence”, “Jarvis, what do you think of my opening?”.
+- The name inside a sentence stays text: “My friend called me Jarvis.”
+- “Jarvis, stop listening” (or “go to sleep”, “that's all”) goes back to waiting.
+
+The wake word is read from Whisper's own transcript rather than by a separate always-on detector. That was chosen by measurement: on 60 synthetic recordings of the name it woke 60 times, with no false wakes in 13.7 minutes of dictation full of near-words (“Travis”, “service”, “jarring”). It has been tested with synthetic voices only; your own voice may differ.
+
+More things you can say:
+
+| Say | What happens |
+|---|---|
+| “Delete what I just said” / “scratch that” | Removes exactly your last utterance. |
+| “Delete the last five words” / “delete the last word” | Removes exactly that many. |
+| “Go back to the sentence about the engine” | Scribe finds it, reads it back and asks “this one?”. New words then go after it. |
+| “Coach mode” / “draft mode” / “conversation mode” | Changes how much the counselor speaks up. |
+
+Scribe never guesses at a deletion. If a request is unclear it asks out loud; if it would remove more than a sentence it reads back what will go and waits for “yes, delete it”. Every applied command plays a short sound, shows a chip with one-tap Undo, and can be undone by saying “undo”.
 
 ## Math and physics mode
 
@@ -185,6 +210,26 @@ Open it with the speech-bubble button. Ask by typing, or press the microphone in
 - Change the model with the picker at the top of the panel. It lists whatever Ollama has downloaded on this Mac.
 
 The counselor's feedback comes from a small local model. Treat it as a second reader, not an authority.
+
+### Talking with it
+
+Ask by voice (“Jarvis, is the ending clear?”) and it answers out loud, in a few sentences, usually ending with a question back to you. Typed questions are answered in the panel only.
+
+- **Interrupt it by talking.** It stops within about a fifth of a second and listens. Its own voice is filtered out of what the microphone hears, so it never ends up in your essay. On loud speakers, headphones work best; the setting “Let me interrupt by talking” can be switched off.
+- **Three modes** (Settings, or by voice). *Draft*: quiet; only commands and questions you ask by name. *Coach*: also speaks up briefly when a paragraph ends, when you pause for about six seconds, or near the word limit. *Conversation*: a full back-and-forth where what you say goes to the counselor, not into the essay; this is the default while brainstorming.
+- **Voice and models** are chosen in Settings. The voice has eleven speakers. Spoken edit requests are read by the counselor's model by default, so only one model is in memory; a smaller, faster one can be chosen.
+- Whatever it says, it still cannot write in your essay.
+
+### Sounds
+
+Eight short cues are made by Scribe itself (no sound files): wake word heard, listening started, listening stopped, command applied, needs confirmation, command failed, saved (at most once a minute) and counselor about to speak. Settings has one volume and a switch for each.
+
+## On your iPhone
+
+The same app runs in Safari on an iPhone and can be added to the Home Screen. The Mac does the work; the phone keeps its own copy of your essays and syncs through the Mac. It needs a private connection between the two and a password you set on the Mac. Setup, what syncs, and what iOS does not allow are in [docs/phone-setup.md](docs/phone-setup.md).
+
+- Away from the Mac you can still dictate: recordings are kept on the phone and transcribed when it is reachable again.
+- The server is never opened to the internet, and another device gets nothing until it has signed in.
 
 ## My voice and memory
 
@@ -261,18 +306,22 @@ To rebuild the starter set from the research files: `node app/scripts/build-seed
 npm test            # unit tests: document model, deletion guard, cleanup rules, chunker
 npm run build && npm run e2e   # browser tests against the built app
 npm run e2e:live    # real Whisper and real Ollama: recordings are played in as the microphone
-npm run smoke       # launches the Mac app and transcribes through it
+npm run smoke       # launches the Mac app: transcribes, speaks and syncs through it
+npm run e2e:phone   # a "Mac" and a phone-sized browser: sign-in, sync both ways, offline recording
+npm run eval -w app       # wake-word measurements
+npm run e2e:long -w app   # a ten-minute spoken conversation; the essay must come out unchanged
 ```
 
 ## What Scribe is built on
 
-All free and open source. Runtime: React, Zustand, Dexie (IndexedDB), KaTeX, docx, pdf-lib, pdf.js, JSZip, lucide-react. Tools: Vite, TypeScript, Tailwind, Vitest, Playwright, Electron, electron-builder. On your Mac: whisper.cpp (built by `setup.sh`) and Ollama.
+All free and open source. Runtime: React, Zustand, Dexie (IndexedDB), KaTeX, docx, pdf-lib, pdf.js, JSZip, lucide-react. Tools: Vite, TypeScript, Tailwind, Vitest, Playwright, Electron, electron-builder. On your Mac: whisper.cpp (built by `setup.sh`), Ollama, and the Kokoro voice run by sherpa-onnx (`sherpa-onnx-node` 1.13.8, Apache-2.0).
 
 ## Layout
 
 ```
 app/       the web app (React, TypeScript, Vite, Dexie over IndexedDB)
-local/     local services with no dependencies: runs whisper-server, serves the app
+local/     local services: runs whisper-server and the voice, serves the app, signs in and syncs a phone
+docs/      phone setup; lessons kept from the earlier Jarvis assistant
 desktop/   the Mac shell (Electron); loads the same bundle as the web app
 setup.sh   one-command setup
 ```

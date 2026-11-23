@@ -190,7 +190,29 @@ export interface MemoryRow {
   ts: number;
 }
 
+/** What this device last agreed with the Mac's master copy about one record. */
+export interface SyncStateRow {
+  /** account id | collection | key */
+  id: string;
+  accountId: string;
+  hash: string;
+  deleted?: boolean;
+}
+
+/** Speech recorded while the Mac could not be reached, waiting to be transcribed. */
+export interface QueuedAudioRow {
+  id?: number;
+  accountId: string;
+  essayId: string;
+  ts: number;
+  wav: ArrayBuffer;
+  /** The speaker paused at the end (as opposed to the recording being cut for length). */
+  paused: boolean;
+}
+
 export class ScribeDB extends Dexie {
+  syncState!: EntityTable<SyncStateRow, 'id'>;
+  audioQueue!: EntityTable<QueuedAudioRow, 'id'>;
   memory!: EntityTable<MemoryRow, 'id'>;
   grades!: EntityTable<GradeRow, 'id'>;
   chats!: EntityTable<ChatRow, 'id'>;
@@ -226,8 +248,13 @@ export class ScribeDB extends Dexie {
       principles: 'id',
       samples: 'id, accountId',
     });
+    // Syncing with the Mac from other devices, and recording while it is out of reach.
+    this.version(2).stores({
+      syncState: 'id, accountId',
+      audioQueue: '++id, accountId',
+    });
   }
 }
 
 export const db = new ScribeDB();
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
