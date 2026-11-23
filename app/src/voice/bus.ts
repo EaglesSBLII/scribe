@@ -4,6 +4,17 @@
  */
 
 let onQuestion: ((text: string) => void) | null = null;
+let voiceOn = false;
+
+/** The microphone session says whether the writer is working by voice right now. */
+export function setVoiceOn(on: boolean) {
+  voiceOn = on;
+}
+
+/** True while dictating, so questions and confirmations are also spoken aloud. */
+export function isVoiceOn(): boolean {
+  return voiceOn;
+}
 
 /** The counselor panel registers here to receive questions asked by voice. */
 export function setQuestionHandler(handler: ((text: string) => void) | null) {

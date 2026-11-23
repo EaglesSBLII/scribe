@@ -33,6 +33,7 @@ export default defineConfig({
     { name: 'voice', testMatch: /voice\.spec/ },
     { name: 'math', testMatch: /math\.spec/, use: withRecording('math.wav') },
     { name: 'wake', testMatch: /wake\.spec/, use: withRecording('wake.wav') },
+    { name: 'scribe2', testMatch: /scribe2\.spec/, use: withRecording('scribe2.wav') },
   ],
   webServer: {
     command: 'node ../local/server.js --no-open',

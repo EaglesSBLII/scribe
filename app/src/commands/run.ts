@@ -13,6 +13,14 @@ export interface CommandContext {
   /** Index of the paragraph dictation is pointing at. */
   activeIndex: number;
   wordLimit: number | null;
+  /** Set when the writer has gone back to an earlier sentence: new text goes after it. */
+  cursor?: { index: number; sentence: number } | null;
+}
+
+/** One way to answer a clarifying question. `say` are the words that choose it. */
+export interface Choice {
+  say: string[];
+  cmd: Command;
 }
 
 export type Outcome =
@@ -22,6 +30,10 @@ export type Outcome =
   | { k: 'say'; text: string; read?: boolean }
   | { k: 'undo' }
   | { k: 'redo' }
+  /** The request could mean two things. Scribe asks; it never guesses on a deletion. */
+  | { k: 'ask'; question: string; choices: Choice[] }
+  /** Needs things only the app knows (the utterance log, the model, settings). */
+  | { k: 'app' }
   | { k: 'error'; text: string; notFound?: boolean };
 
 const err = (text: string): Outcome => ({ k: 'error', text });
@@ -201,6 +213,56 @@ export function resolve(cmd: Command, doc: Doc, ctx: CommandContext): Outcome {
       return { k: 'edit', op: ops.length === 1 ? ops[0] : { k: 'batch', ops }, label: `Replacing ${what}`, done: `Replaced ${what}` };
     }
 
+    case 'deleteUtterance':
+    case 'goto':
+    case 'gotoEnd':
+    case 'mode':
+      return { k: 'app' };
+
+    case 'deleteWords': {
+      const count = cmd.count;
+      if (!Number.isInteger(count) || count < 1) return err('Say how many words to delete.');
+      const last = doc.paragraphs.length - 1;
+      const here = ctx.cursor && ctx.cursor.index <= last ? ctx.cursor : null;
+      const hereList = here ? sentences(paraText(doc.paragraphs[here.index])) : [];
+      const atEnd = !here || (here.index === last && here.sentence >= hereList.length - 1);
+      if (!cmd.where && !atEnd) {
+        // Two readings: never guess on a deletion.
+        const what = plural(count, 'word');
+        return {
+          k: 'ask',
+          question: `The last ${what} before where you are in paragraph ${here!.index + 1}, or the last ${what} of the essay?`,
+          choices: [
+            { say: ['here', 'where i am', 'before', 'first', 'the first', 'this paragraph', `paragraph ${here!.index + 1}`], cmd: { ...cmd, where: 'here' } },
+            { say: ['essay', 'end', 'the end', 'second', 'the second', 'last', 'of the essay'], cmd: { ...cmd, where: 'end' } },
+          ],
+        };
+      }
+      // The stretch of text the words are taken from the end of.
+      let p: number;
+      let limit: number;
+      if (cmd.where === 'here' && here) {
+        p = here.index;
+        limit = hereList[Math.min(here.sentence, hereList.length - 1)]?.end ?? paraText(doc.paragraphs[p]).length;
+      } else {
+        const found = paraWithText(doc, undefined, { ...ctx, activeIndex: cmd.where === 'end' ? last : ctx.activeIndex });
+        if (isOutcome(found)) return found;
+        p = found;
+        limit = paraText(doc.paragraphs[p]).length;
+      }
+      const text = paraText(doc.paragraphs[p]);
+      // Words are counted the way the word count counts them: runs of non-space holding a letter or digit.
+      const found = [...text.slice(0, limit).matchAll(/\S+/g)].filter((m) => /[\p{L}\p{N}]/u.test(m[0]));
+      if (found.length === 0) return err(`Paragraph ${p + 1} is empty.`);
+      if (count > found.length) return err(`There are only ${plural(found.length, 'word')} there, in paragraph ${p + 1}.`);
+      const from = found[found.length - count].index;
+      const nodes = doc.paragraphs[p].nodes;
+      // The space before the removed words goes with them.
+      const kept = tidy([...sliceNodes(nodes, 0, text.slice(0, from).trimEnd().length), ...sliceNodes(nodes, limit, text.length)]);
+      const what = `the last ${plural(count, 'word')} of P${p + 1}`;
+      return { k: 'edit', op: { k: 'setParagraph', index: p, nodes: kept }, label: `Deleting ${what}`, done: `Deleted ${what}` };
+    }
+
     case 'insert': {
       const p = paraIndex(doc, cmd.para, ctx);
       if (isOutcome(p)) return p;
@@ -243,4 +305,40 @@ export function resolve(cmd: Command, doc: Doc, ctx: CommandContext): Outcome {
       return { k: 'edit', op: { k: 'setParagraph', index: p, nodes: tidy(next) }, label: `Inserting ${where}`, done: `Inserted ${where}` };
     }
   }
+}
+
+/** One part of a dictated utterance: the paragraph it went into and its exact text there. */
+export interface SegmentPart {
+  paraId: string;
+  text: string;
+}
+
+/**
+ * Remove a dictated utterance, wherever its text now sits. Each part is removed
+ * only if its text is still found, word for word, in the paragraph it went
+ * into; otherwise nothing is touched and Scribe says so.
+ */
+export function removeSegment(doc: Doc, parts: SegmentPart[]): Outcome {
+  const ops: Op[] = [];
+  const removed: number[] = [];
+  for (const part of parts) {
+    const index = doc.paragraphs.findIndex((p) => p.id === part.paraId);
+    const text = index < 0 ? '' : paraText(doc.paragraphs[index]);
+    const at = part.text ? text.lastIndexOf(part.text) : -1;
+    if (index < 0 || at < 0) return err('What you just said has since been changed, so Scribe left it alone.');
+    const nodes = doc.paragraphs[index].nodes;
+    // Take the space before it too, or the space after it at the start of the paragraph.
+    const from = text.slice(0, at).trimEnd().length;
+    const afterEnd = at + part.text.length;
+    const to = from === 0 ? afterEnd + (text.slice(afterEnd).length - text.slice(afterEnd).trimStart().length) : afterEnd;
+    const kept = tidy([...sliceNodes(nodes, 0, from), ...sliceNodes(nodes, to, text.length)]);
+    ops.push({ k: 'setParagraph', index, nodes: kept });
+    if (kept.length === 0) removed.push(index);
+  }
+  if (ops.length === 0) return err('There is nothing you just said to delete.');
+  // A paragraph that the utterance itself started, and that is now empty, goes too.
+  for (const index of removed.slice(1).sort((a, b) => b - a)) {
+    if (doc.paragraphs.length - removed.slice(1).length >= 1) ops.push({ k: 'deleteParagraph', index });
+  }
+  return { k: 'edit', op: ops.length === 1 ? ops[0] : { k: 'batch', ops }, label: 'Deleting what you just said', done: 'Deleted what you just said' };
 }

@@ -30,7 +30,16 @@ export type Command =
   | { k: 'move'; para: ParaRef; where: 'top' | 'bottom' | 'up' | 'down' }
   | { k: 'replace'; find: string; with: string; para?: ParaRef }
   /** `words` is the dictated text to insert, exactly as heard. */
-  | { k: 'insert'; words: HeardWord[]; at: InsertPlace; para?: ParaRef };
+  | { k: 'insert'; words: HeardWord[]; at: InsertPlace; para?: ParaRef }
+  /** "Delete what I just said": the last dictated utterance. */
+  | { k: 'deleteUtterance' }
+  /** "Delete the last 5 words". `where` is filled in once Scribe knows which words are meant. */
+  | { k: 'deleteWords'; count: number; where?: 'here' | 'end' }
+  /** "Go back to the sentence about the boat": found by meaning, then confirmed. */
+  | { k: 'goto'; about: string }
+  | { k: 'gotoEnd' }
+  /** How much the counselor speaks up. */
+  | { k: 'mode'; mode: 'draft' | 'coach' | 'conversation' };
 
 const NUMBER_WORDS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
@@ -94,7 +103,24 @@ const rule = (pattern: string, build: Rule['build']): Rule => ({ re: new RegExp(
 const VERB_INSERT = '(?:insert|add|put)';
 
 const RULES: Rule[] = [
-  rule('undo(?: that)?|scratch that', () => ({ k: 'undo' })),
+  rule('undo(?: that)?', () => ({ k: 'undo' })),
+  rule(
+    "scratch that|(?:delete|remove|erase|scratch) (?:what|everything) (?:i|i've) just said|(?:delete|remove|erase) (?:that|what i said|the last thing i said|my last sentence)",
+    () => ({ k: 'deleteUtterance' }),
+  ),
+  rule(`(?:delete|remove|erase) (?:the |my )?last (?:(?<wn>${NUM}) )?words?`, (g) => ({ k: 'deleteWords', count: g.wn ? num(g.wn) : 1 })),
+  rule(
+    '(?:go|jump|move)(?: back)? to (?:the |my )?(?:sentence|part|line|bit|place|paragraph) (?:about|where|with|on|that mentions) (?<about>.+)|find (?:the |my )?(?:sentence|part|line) (?:about|where|with) (?<about2>.+)',
+    (_g, slice) => {
+      const about = [...slice('about'), ...slice('about2')].map((t) => t.plain).join(' ');
+      return about ? { k: 'goto', about } : null;
+    },
+  ),
+  rule('(?:go|jump|move)(?: back)? to the end|continue (?:at|from) the end|back to the end', () => ({ k: 'gotoEnd' })),
+  rule('(?:switch to |go to |use )?(?<mode>draft|coach|coaching|conversation|quiet) mode', (g) => ({
+    k: 'mode',
+    mode: g.mode === 'coach' || g.mode === 'coaching' ? 'coach' : g.mode === 'conversation' ? 'conversation' : 'draft',
+  })),
   rule('redo(?: that)?', () => ({ k: 'redo' })),
 
   rule(

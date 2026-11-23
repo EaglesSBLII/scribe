@@ -190,7 +190,8 @@ describe('questions answered in code', () => {
   it('parses undo and redo', () => {
     expect(parseCommand('Undo.')).toEqual({ k: 'undo' });
     expect(parseCommand('undo that')).toEqual({ k: 'undo' });
-    expect(parseCommand('scratch that')).toEqual({ k: 'undo' });
+    // "Scratch that" now removes the last thing dictated, wherever it is.
+    expect(parseCommand('scratch that')).toEqual({ k: 'deleteUtterance' });
     expect(parseCommand('redo')).toEqual({ k: 'redo' });
   });
 });

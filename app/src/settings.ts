@@ -21,6 +21,7 @@ interface Values {
   /** The counselor answers out loud. */
   speakReplies: boolean;
   voice: string;
+  counselorMode: CounselorMode;
 }
 
 const DEFAULTS: Values = {
@@ -31,6 +32,7 @@ const DEFAULTS: Values = {
   earconsOff: [],
   speakReplies: true,
   voice: 'af_heart',
+  counselorMode: 'draft',
 };
 
 interface SettingsState extends Values {

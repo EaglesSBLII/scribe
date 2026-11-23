@@ -57,6 +57,13 @@ export interface OpRow {
   inverse: Op;
   /** True once the edit has been undone; it can then be redone. */
   undone: boolean;
+  /**
+   * For a dictated utterance: where its text went (paragraph and exact text),
+   * so "delete what I just said" can find it again.
+   */
+  segment?: { paraId: string; text: string }[];
+  /** The utterance has been deleted by voice, so it is not offered again. */
+  segmentGone?: boolean;
 }
 
 export interface VersionRow {

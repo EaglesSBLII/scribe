@@ -17,7 +17,7 @@ import { useSettings } from '../settings';
 import { speak, useSpeech } from '../speech';
 import { isSleepRequest, readWake } from '../voice/wake';
 import { playEarcon, unlockAudio } from '../voice/earcons';
-import { askCounselor } from '../voice/bus';
+import { askCounselor, setVoiceOn } from '../voice/bus';
 
 interface DictationState {
   /** Dictating. */
@@ -40,6 +40,9 @@ interface DictationState {
 export const useDictation = create<DictationState>(() => ({
   on: false, standby: false, awaiting: false, hearing: false, waiting: 0, interim: '', error: null, target: 'essay',
 }));
+
+// Other parts of the app speak questions aloud only while the writer is working by voice.
+useDictation.subscribe((s) => setVoiceOn(s.on && s.target === 'essay'));
 
 export { setQuestionHandler } from '../voice/bus';
 
@@ -92,6 +95,8 @@ async function addressed(words: HeardWord[]) {
 }
 
 async function heardWhileDictating(words: HeardWord[], paused: boolean) {
+  // If Scribe has asked something ("this one?", "yes, delete it?"), this may be the answer.
+  if (useStore.getState().answerPending(words)) return;
   if (useDictation.getState().awaiting) return addressed(words);
   const wake = readWake(words);
   if (!wake.wake) return useStore.getState().insertHeard(words, paused);

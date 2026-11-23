@@ -10,19 +10,22 @@ import {
   splitParagraph, type Op,
 } from './doc/ops';
 import { docText, emptyDoc, emptyParagraph, paraText, type Doc, type Inline } from './doc/types';
-import { clean, guard, type HeardWord } from './dictation/clean';
-import { classifySpokenWord, looksLikeEditRequest, restateCommand } from './llm/assist';
+import { clean, type HeardWord } from './dictation/clean';
+import { classifySpokenWord, findSentence, looksLikeEditRequest, readRequest } from './llm/assist';
+import { numberedEssay } from './llm/prompts';
+import { fromJson } from './commands/fromJson';
+import { sentences } from './doc/segment';
 import { useCounselor } from './llm/counselor';
 import { useSettings } from './settings';
 import { useMemory } from './memory/store';
 import { readPaperUtterance } from './math/paper';
-import { askCounselor } from './voice/bus';
+import { askCounselor, isVoiceOn } from './voice/bus';
 import { playEarcon } from './voice/earcons';
 import { usePaper } from './paper/store';
 import { applySeed } from './colleges/seed';
 import { useColleges } from './colleges/store';
 import { parseCommand, type Command } from './commands/parse';
-import { resolve } from './commands/run';
+import { removeSegment, resolve, type CommandContext, type SegmentPart } from './commands/run';
 import { speak, stopSpeaking } from './speech';
 import { countWords } from './doc/segment';
 import { flushPending } from './editorBus';
@@ -57,6 +60,15 @@ export interface CommandChip {
   action?: 'cancel' | 'undo' | 'stop';
 }
 
+/** A question Scribe has asked and is waiting to have answered, by voice or by a click. */
+export interface Pending {
+  question: string;
+  /** Each way of answering: the words that choose it, and what then happens. */
+  answers: { label: string; say: string[]; run: () => void }[];
+  /** What happens if something else is said, or nothing: for a deletion, it is not carried out. */
+  otherwise?: () => void;
+}
+
 const AUTO_VERSION_MS = 10 * 60 * 1000;
 /** How long a parsed edit is shown before it is applied. */
 const PREVIEW_MS = 1200;
@@ -80,6 +92,13 @@ interface State {
   /** The paragraph dictation adds to: the one last clicked in, else the last one. */
   activeParaId: string | null;
   chip: CommandChip | null;
+  /** Set after "go back to the sentence about …": new dictation goes after this sentence. */
+  cursor: { paraId: string; sentence: number } | null;
+  pending: Pending | null;
+  /** Take an utterance as the answer to a pending question. Returns true if it was one. */
+  answerPending(words: HeardWord[]): boolean;
+  /** Answer a pending question by clicking. */
+  choosePending(index: number): void;
 
   setWordLimit(id: string, limit: number | null): void;
   /** Returns false when the words should be treated as dictation after all. */
@@ -98,7 +117,7 @@ interface State {
   moveEssay(id: string, toIndex: number): void;
   requestDeleteEssay(id: string): void;
 
-  edit(op: Op, opts?: { confirmed?: boolean; ask?: string[]; focus?: { paraId: string; offset: number } }): boolean;
+  edit(op: Op, opts?: { confirmed?: boolean; ask?: string[]; focus?: { paraId: string; offset: number }; segment?: SegmentPart[] }): boolean;
   /** `nodes` carries any flagged words that are still intact in the editor. */
   commitText(paraId: string, text: string, nodes?: Inline[]): void;
   setActivePara(paraId: string): void;
@@ -161,15 +180,111 @@ export const useStore = create<State>((set, get) => {
   async function restated(said: string, forced: boolean): Promise<Command | null> {
     if (!forced && !looksLikeEditRequest(said)) return null;
     set({ chip: { text: 'Working out that request…', phase: 'info' } });
-    const text = await restateCommand(said);
+    const json = await readRequest(said);
     set({ chip: null });
-    const parsed = text ? parseCommand(text) : null;
-    if (!parsed) return null;
-    // The model may only rearrange the speaker's own words.
-    if (parsed.k === 'insert' && !guard(said, parsed.words.map((w) => w.text).join(' '))) return null;
-    if (parsed.k === 'replace' && !(guard(said, parsed.find) && guard(said, parsed.with))) return null;
-    return parsed;
+    // fromJson rejects anything where the model passed along words the speaker did not say.
+    return json ? fromJson(json, said) : null;
   }
+
+  /** What the command resolver needs to know about where the writer is. */
+  function context(essay: EssayRow): CommandContext {
+    const ps = essay.doc.paragraphs;
+    const active = ps.findIndex((p) => p.id === get().activeParaId);
+    const cur = get().cursor;
+    const at = cur ? ps.findIndex((p) => p.id === cur.paraId) : -1;
+    return {
+      activeIndex: at >= 0 ? at : active < 0 ? ps.length - 1 : active,
+      wordLimit: essay.wordLimit ?? null,
+      cursor: at >= 0 ? { index: at, sentence: cur!.sentence } : null,
+    };
+  }
+
+  let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Ask the writer something and wait for a spoken (or clicked) answer. */
+  function askVoice(pending: Pending) {
+    clearTimeout(pendingTimer);
+    set({ pending });
+    playEarcon('confirm');
+    if (isVoiceOn()) speak(pending.question);
+    // An unanswered question lapses; a lapsed deletion is not carried out.
+    pendingTimer = setTimeout(() => {
+      const p = get().pending;
+      if (p !== pending) return;
+      set({ pending: null });
+      p.otherwise?.();
+    }, 25_000);
+  }
+
+  /** Commands that need the utterance log, the model or the settings. */
+  async function appCommand(cmd: Command) {
+    const essay = current();
+    if (!essay) return;
+    const fail = (text: string) => {
+      set({ chip: { text, phase: 'error' } });
+      playEarcon('failed');
+      if (isVoiceOn()) speak(text);
+    };
+
+    if (cmd.k === 'deleteUtterance') {
+      const row = [...get().undoStack].reverse().find((r) => r.segment?.length && !r.segmentGone);
+      if (!row) return fail('There is nothing you just said to delete.');
+      const out = removeSegment(essay.doc, row.segment as SegmentPart[]);
+      if (out.k !== 'edit') return fail(out.k === 'error' ? out.text : 'That could not be deleted.');
+      // More than one sentence still needs a yes: edit() asks, on screen and aloud.
+      if (get().edit(out.op)) {
+        row.segmentGone = true;
+        set({ chip: { text: out.done, phase: 'done', action: 'undo' } });
+        playEarcon('applied');
+      }
+      return;
+    }
+
+    if (cmd.k === 'gotoEnd') {
+      set({ cursor: null, activeParaId: essay.doc.paragraphs.at(-1)?.id ?? null, chip: { text: 'Writing at the end again', phase: 'done' } });
+      playEarcon('applied');
+      return;
+    }
+
+    if (cmd.k === 'mode') {
+      await useSettings.getState().set('counselorMode', cmd.mode);
+      const name = cmd.mode === 'draft' ? 'Draft mode: I will stay quiet unless you ask.' : cmd.mode === 'coach' ? 'Coach mode: I will speak up at natural breaks.' : 'Conversation mode.';
+      set({ chip: { text: name, phase: 'done' } });
+      playEarcon('applied');
+      if (isVoiceOn()) speak(name);
+      return;
+    }
+
+    if (cmd.k === 'goto') {
+      set({ chip: { text: `Looking for the sentence about ${cmd.about}…`, phase: 'info' } });
+      const label = await findSentence(cmd.about, numberedEssay(essay.doc));
+      const now = current();
+      const m = label ? /^P(\d+)·S(\d+)$/.exec(label) : null;
+      const para = m && now ? now.doc.paragraphs[Number(m[1]) - 1] : undefined;
+      const sentence = para ? sentences(paraText(para))[Number(m![2]) - 1] : undefined;
+      if (!para || !sentence) return fail(`I could not find a sentence about ${cmd.about}.`);
+      // Found by meaning, so confirm before moving: read it back and ask.
+      const question = `${label!.replace('·', ', ').replace('P', 'Paragraph ').replace('S', 'sentence ')}: “${sentence.text}” This one?`;
+      set({ chip: { text: question, phase: 'info' } });
+      askVoice({
+        question,
+        answers: [
+          {
+            label: 'Yes', say: ['yes', 'yeah', 'yep', 'that one', 'this one', 'correct', 'right'],
+            run: () => {
+              set({ cursor: { paraId: para.id, sentence: Number(m![2]) - 1 }, activeParaId: para.id, chip: { text: `Now writing after ${label}. Say “Jarvis, go to the end” to return.`, phase: 'done' } });
+              playEarcon('applied');
+            },
+          },
+          { label: 'No', say: ['no', 'nope', 'not that one', 'wrong', 'cancel', 'never mind'], run: () => set({ chip: { text: 'Okay, staying where you were.', phase: 'info' } }) },
+        ],
+        otherwise: () => set({ chip: null }),
+      });
+    }
+  }
+
+  /** Text of a paragraph's worth of dictated pieces, as it reads in the essay. */
+  const piecesToText = (pieces: { t: string; text?: string; latex?: string; display?: boolean }[]) =>
+    pieces.map((n) => (n.t === 'math' ? (n.display ? `$$${n.latex}$$` : `$${n.latex}$`) : (n.text ?? ''))).join('').trim();
 
   function patchEssay(id: string, patch: Partial<EssayRow>) {
     const essays = get().essays.map((e) => (e.id === id ? { ...e, ...patch } : e));
@@ -215,6 +330,8 @@ export const useStore = create<State>((set, get) => {
     historyOpen: false,
     activeParaId: null,
     chip: null,
+    cursor: null,
+    pending: null,
 
     setWordLimit(id, limit) {
       patchEssay(id, { wordLimit: limit && limit > 0 ? Math.round(limit) : null });
@@ -224,12 +341,7 @@ export const useStore = create<State>((set, get) => {
       get().flushCommand();
       const essay = current();
       if (!essay) return false;
-      const context = () => {
-        const now = current()!;
-        const active = now.doc.paragraphs.findIndex((p) => p.id === get().activeParaId);
-        return { activeIndex: active < 0 ? now.doc.paragraphs.length - 1 : active, wordLimit: now.wordLimit ?? null };
-      };
-      const out = resolve(cmd, essay.doc, context());
+      const out = resolve(cmd, essay.doc, context(essay));
       switch (out.k) {
         case 'error':
           // "Change came to my town" is a sentence, not a failed replace.
@@ -259,7 +371,44 @@ export const useStore = create<State>((set, get) => {
           set({ chip: { text: out.label, phase: 'pending', action: 'cancel' } });
           previewTimer = setTimeout(() => get().flushCommand(), PREVIEW_MS);
           return true;
+        case 'ask':
+          // Two possible meanings: ask, and do nothing until answered.
+          set({ chip: { text: out.question, phase: 'info' } });
+          askVoice({
+            question: out.question,
+            answers: out.choices.map((c) => ({ label: c.say[0], say: c.say, run: () => void get().handleCommand(c.cmd) })),
+            otherwise: () => set({ chip: { text: 'Nothing was deleted.', phase: 'info' } }),
+          });
+          return true;
+        case 'app':
+          void appCommand(cmd);
+          return true;
       }
+      return true;
+    },
+
+    answerPending(heard) {
+      const pending = get().pending;
+      if (!pending) return false;
+      const said = heard.map((h) => h.text).join(' ').toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim().replace(/^(hey |ok |okay )?jarvis /, '');
+      const answer = pending.answers.find((a) => a.say.some((k) => said === k || said.startsWith(`${k} `) || said.endsWith(` ${k}`)));
+      clearTimeout(pendingTimer);
+      set({ pending: null });
+      if (answer) {
+        answer.run();
+        return true;
+      }
+      // Anything else is not an answer: the question is dropped and the words are handled normally.
+      pending.otherwise?.();
+      return false;
+    },
+
+    choosePending(index) {
+      const pending = get().pending;
+      clearTimeout(pendingTimer);
+      set({ pending: null });
+      if (index >= 0) pending?.answers[index]?.run();
+      else pending?.otherwise?.();
     },
 
     flushCommand() {
@@ -268,12 +417,8 @@ export const useStore = create<State>((set, get) => {
       previewed = null;
       const essay = current();
       if (!cmd || !essay) return;
-      const active = essay.doc.paragraphs.findIndex((p) => p.id === get().activeParaId);
       // Worked out again against the essay as it is now.
-      const out = resolve(cmd, essay.doc, {
-        activeIndex: active < 0 ? essay.doc.paragraphs.length - 1 : active,
-        wordLimit: essay.wordLimit ?? null,
-      });
+      const out = resolve(cmd, essay.doc, context(essay));
       if (out.k !== 'edit') return set({ chip: out.k === 'error' ? { text: out.text, phase: 'error' } : null });
       // A large deletion stops at the confirmation dialog like any other.
       const applied = get().edit(out.op);
@@ -354,6 +499,8 @@ export const useStore = create<State>((set, get) => {
         historyOpen: false,
         versions: [],
         activeParaId: null,
+        cursor: null,
+        pending: null,
       });
       persist(() => db.settings.put({ accountId: account.id, key: 'lastEssayId', value: id }));
       void useCounselor.getState().load(id);
@@ -460,6 +607,19 @@ export const useStore = create<State>((set, get) => {
               onCancel: () => set({ docRev: get().docRev + 1 }),
             },
           });
+          if (isVoiceOn()) {
+            // By voice: read back what will go, and do nothing without a "yes".
+            const words = err.removed.join(' ').split(/\s+/);
+            const readBack = words.length > 45 ? `${words.slice(0, 45).join(' ')}, and ${words.length - 45} more words` : words.join(' ');
+            askVoice({
+              question: `This will delete: ${readBack.replace(/[.\s]+$/, '')}. Say “yes, delete it” to confirm, or “no”.`,
+              answers: [
+                { label: 'Yes, delete it', say: ['yes delete it', 'yes delete', 'yes', 'yeah', 'delete it', 'confirm'], run: () => void get().closeConfirm(true) },
+                { label: 'No', say: ['no', 'nope', 'cancel', 'never mind', 'dont', 'do not', 'stop', 'keep it'], run: () => void get().closeConfirm(false) },
+              ],
+              otherwise: () => void get().closeConfirm(false),
+            });
+          }
           return false;
         }
         if (err instanceof OpError) {
@@ -470,6 +630,7 @@ export const useStore = create<State>((set, get) => {
       }
 
       const row: OpRow = { essayId: essay.id, ts: Date.now(), op, inverse: result.inverse, undone: false };
+      if (opts.segment?.length) row.segment = opts.segment;
       const dropped = get().redoStack;
       const saved = withDoc(essay, result.doc);
       set({
@@ -559,6 +720,23 @@ export const useStore = create<State>((set, get) => {
       const essay = current();
       if (!essay) return;
       const ps = essay.doc.paragraphs;
+
+      // After "go back to the sentence about …", new text goes after that sentence.
+      const cur = get().cursor;
+      const at = cur ? ps.findIndex((p) => p.id === cur.paraId) : -1;
+      if (cur && at >= 0) {
+        const had = sentences(paraText(ps[at])).length;
+        const out = resolve({ k: 'insert', words: heard, at: { k: 'after', sent: cur.sentence + 1 }, para: at + 1 }, essay.doc, context(essay));
+        const text = clean(heard, { final: true }).text.trim();
+        if (out.k === 'edit' && get().edit(out.op, { segment: [{ paraId: cur.paraId, text }] })) {
+          const has = sentences(paraText(current()!.doc.paragraphs[at])).length;
+          set({ cursor: { paraId: cur.paraId, sentence: cur.sentence + Math.max(1, has - had) } });
+          return;
+        }
+        // The sentence is no longer there: fall back to writing at the end.
+        set({ cursor: null });
+      }
+
       let index = ps.findIndex((p) => p.id === get().activeParaId);
       if (index < 0) index = ps.length - 1;
       const before = paraText(ps[index]).trimEnd();
@@ -568,17 +746,35 @@ export const useStore = create<State>((set, get) => {
       if (paper?.k === 'block') {
         // A heading, caption or equation gets its own paragraph, and dictation carries on in a fresh one after it.
         const next = emptyParagraph();
+        const block = { ...emptyParagraph(), nodes: paper.nodes };
         const ops: Op[] = before === ''
           ? [{ k: 'setParagraph', index, nodes: paper.nodes }, { k: 'insertParagraph', index: index + 1, para: next }]
-          : [{ k: 'insertParagraph', index: index + 1, para: { ...emptyParagraph(), nodes: paper.nodes } }, { k: 'insertParagraph', index: index + 2, para: next }];
-        if (get().edit({ k: 'batch', ops })) set({ activeParaId: next.id });
+          : [{ k: 'insertParagraph', index: index + 1, para: block }, { k: 'insertParagraph', index: index + 2, para: next }];
+        const segment = [{ paraId: before === '' ? ps[index].id : block.id, text: piecesToText(paper.nodes) }];
+        if (get().edit({ k: 'batch', ops }, { segment })) set({ activeParaId: next.id });
         return;
       }
       const pieces = paper?.k === 'inline' ? paper.pieces : clean(heard, { final: paused, continuing }).pieces;
-      const result = appendPieces(essay.doc, index, pieces, emptyParagraph);
+      // Remember where each part of this utterance goes, so it can be found again.
+      const made: string[] = [];
+      const result = appendPieces(essay.doc, index, pieces, () => {
+        const p = emptyParagraph();
+        made.push(p.id);
+        return p;
+      });
       if (!result) return;
+      const groups: (typeof pieces)[] = [[]];
+      for (const piece of pieces) {
+        if (piece.t === 'break') groups.push([]);
+        else groups.at(-1)!.push(piece);
+      }
+      const targets = [ps[index].id, ...made];
+      // When the current paragraph was empty, the first later group filled it instead of a new one.
+      const segment = (before === '' && groups[0].length === 0 ? groups.slice(1) : groups)
+        .map((g, i) => ({ paraId: targets[i], text: piecesToText(g) }))
+        .filter((part) => part.paraId && part.text);
       // Adding text never removes any, so this cannot trip the deletion guard.
-      if (get().edit(result.op)) {
+      if (get().edit(result.op, { segment })) {
         const now = current();
         set({ activeParaId: now?.doc.paragraphs[result.lastIndex]?.id ?? null });
       }
@@ -754,7 +950,9 @@ export const useStore = create<State>((set, get) => {
 
     async closeConfirm(confirmed) {
       const request = get().confirm;
-      set({ confirm: null });
+      // Answering on screen also settles the spoken question, and the other way round.
+      clearTimeout(pendingTimer);
+      set({ confirm: null, pending: null });
       if (!request) return;
       if (confirmed) await request.onConfirm();
       else request.onCancel?.();
