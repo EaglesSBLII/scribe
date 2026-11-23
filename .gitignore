@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-electron/
+desktop/web/
+desktop/resources/bin/
+desktop/resources/models/
+.tools/
+.setup-run.log
+desktop/lib/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.DS_Store

@@ -1,0 +1,38 @@
+{
+  "name": "@scribe/app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4317 --strictPort",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "e2e:live": "playwright test -c playwright.live.config.ts"
+  },
+  "dependencies": {
+    "dexie": "^4.0.11",
+    "docx": "^9.16.0",
+    "jszip": "^3.10.2",
+    "katex": "^0.19.1",
+    "lucide-react": "^1.70.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.5.438",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/katex": "^0.16.8",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.8.0",
+    "vite": "^6.3.0",
+    "vitest": "^3.2.0"
+  }
+}

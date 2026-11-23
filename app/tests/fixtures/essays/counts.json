@@ -1,0 +1,8 @@
+{
+  "_source": "Reference counts from `wc -w` and, separately, Python's str.split(); both gave these numbers on 2026-11-22.",
+  "essay1.txt": 141,
+  "essay2.txt": 158,
+  "essay3.txt": 159,
+  "essay4.txt": 165,
+  "essay5.txt": 162
+}

@@ -1,0 +1,25 @@
+{
+  "name": "scribe",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Scribe: a free, local, voice-first essay writing app",
+  "workspaces": [
+    "app",
+    "local",
+    "desktop"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node local/server.js",
+    "dev": "npm run dev -w app",
+    "build": "npm run build -w app",
+    "test": "npm run test -w app",
+    "e2e": "npm run e2e -w app",
+    "e2e:live": "npm run e2e:live -w app",
+    "desktop": "npm run start -w desktop",
+    "smoke": "npm run smoke -w desktop",
+    "dist:mac": "npm run build -w app && npm run dist -w desktop"
+  }
+}

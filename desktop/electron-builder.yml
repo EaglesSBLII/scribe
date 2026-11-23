@@ -1,0 +1,24 @@
+appId: com.scribe.essay
+productName: Scribe
+directories:
+  output: dist-electron
+files:
+  - src/**
+  - web/**
+  - lib/**
+  - package.json
+extraResources:
+  - from: resources/bin
+    to: bin
+  - from: resources/models
+    to: models
+npmRebuild: false
+mac:
+  target:
+    - target: dmg
+      arch: arm64
+  category: public.app-category.education
+  identity: null
+  extendInfo:
+    NSMicrophoneUsageDescription: Scribe listens to you so it can write down what you say. Audio never leaves this Mac.
+electronVersion: 36.9.5

@@ -1,0 +1,272 @@
+{
+  "retrievedOn": "2026-11-22",
+  "colleges": [
+    {
+      "id": "uiuc",
+      "name": "University of Illinois Urbana-Champaign",
+      "appliesVia": "",
+      "promptsFrom": null,
+      "wants": "",
+      "wantsSourceUrl": "https://www.admissions.illinois.edu/essays/",
+      "cycleYear": "2026-27",
+      "verified": false,
+      "notes": "Could not open any admissions.illinois.edu page: the site returned an automated-visitor verification interstitial ('One moment, please...') to every request, which was not bypassed. No Illinois prompts, rubric or principles are included. A person should open https://www.admissions.illinois.edu/essays/ and https://www.admissions.illinois.edu/how-admission-works/ in a browser."
+    },
+    {
+      "id": "uw",
+      "name": "University of Washington (Seattle)",
+      "appliesVia": "Common App",
+      "promptsFrom": "common-app",
+      "wants": "UW treats the essay as its chance to meet the person behind grades and numbers. Academic preparation and performance come first in review, alongside personal achievements and traits such as service, leadership, real responsibility and distinctive perspectives. It wants original writing in the applicant's own voice.",
+      "wantsSourceUrl": "https://admit.washington.edu/apply/first-year/how-to-apply/writing-section/",
+      "cycleYear": "2026-27",
+      "verified": true,
+      "notes": "First-year applicants no longer write a UW-specific essay; the required essay is the Common App personal essay. Application route confirmed at https://admit.washington.edu/apply/first-year/how-to-apply/ (UW does not consider recommendation letters, interviews or demonstrated interest). promptsFrom value 'common-app' is a suggested key, not from the page."
+    },
+    {
+      "id": "penn-state",
+      "name": "Penn State (University Park)",
+      "appliesVia": "MyPennState application or Common App (no preference between them)",
+      "promptsFrom": null,
+      "wants": "Penn State weighs the academic record most heavily: courses, grades and course levels from grades 9-11, plus test scores if submitted. The optional personal statement and activities list can be additional factors, and reviewers consider the roles an applicant fills as student, family member, athlete, volunteer or employee.",
+      "wantsSourceUrl": "https://www.psu.edu/resources/first-year-students/application-review",
+      "cycleYear": "2026-27",
+      "verified": true,
+      "notes": "Personal Statement is optional; Common App Essay is accepted as the Personal Statement. No official Penn State essay-advice page was found, so no principles are included. 'No preference' statement seen at https://www.psu.edu/admission/undergraduate/how-to-apply. Pages are live with 2026 dates (Early Action grace period to November 5, 2026)."
+    }
+  ],
+  "prompts": [
+    {
+      "id": "uw-1",
+      "collegeId": "uw",
+      "label": "Common App personal essay: Background, identity, interest or talent",
+      "text": "Some students have a background, identity, interest, or talent that is so meaningful they believe their application would be incomplete without it. If this sounds like you, then please share your story.",
+      "minWords": 250,
+      "wordLimit": 650,
+      "instructions": "Required: answer ONE of the seven Common App personal essay prompts. UW states no preference among them. Maximum 650 words; responses under 250 words are not accepted.",
+      "sourceUrl": "https://admit.washington.edu/apply/first-year/how-to-apply/writing-section/",
+      "cycleYear": "2026-27",
+      "verified": true,
+      "notes": "Text copied from the live UW page (footer 2026, no cycle year in page text; current December 1 deadline-extension banner on the sibling how-to-apply page). The page's only year reference is a link to a Common App post whose URL contains 2025-2026."
+    },
+    {
+      "id": "uw-2",
+      "collegeId": "uw",
+      "label": "Common App personal essay: Challenge, setback or failure",
+      "text": "The lessons we take from obstacles we encounter can be fundamental to later success. Recount a time when you faced a challenge, setback, or failure. How did it affect you, and what did you learn from the experience?",
+      "minWords": 250,
+      "wordLimit": 650,
+      "instructions": "Required: answer ONE of the seven Common App personal essay prompts. UW states no preference among them. Maximum 650 words; responses under 250 words are not accepted.",
+      "sourceUrl": "https://admit.washington.edu/apply/first-year/how-to-apply/writing-section/",
+      "cycleYear": "2026-27",
+      "verified": true,
+      "notes": "Text copied from the live UW page (footer 2026, no cycle year in page text; current December 1 deadline-extension banner on the sibling how-to-apply page). The page's only year reference is a link to a Common App post whose URL contains 2025-2026."
+    },
+    {
+      "id": "uw-3",
+      "collegeId": "uw",
+      "label": "Common App personal essay: Questioned a belief or idea",
+      "text": "Reflect on a time when you questioned or challenged a belief or idea. What prompted your thinking? What was the outcome?",
+      "minWords": 250,
+      "wordLimit": 650,
+      "instructions": "Required: answer ONE of the seven Common App personal essay prompts. UW states no preference among them. Maximum 650 words; responses under 250 words are not accepted.",
+      "sourceUrl": "https://admit.washington.edu/apply/first-year/how-to-apply/writing-section/",
+      "cycleYear": "2026-27",
+      "verified": true,
+      "notes": "Text copied from the live UW page (footer 2026, no cycle year in page text; current December 1 deadline-extension banner on the sibling how-to-apply page). The page's only year reference is a link to a Common App post whose URL contains 2025-2026."
+    },
+    {
+      "id": "uw-4",
+      "collegeId": "uw",
+      "label": "Common App personal essay: Gratitude",
+      "text": "Reflect on something that someone has done for you that has made you happy or thankful in a surprising way. How has this gratitude affected or motivated you?",
+      "minWords": 250,
+      "wordLimit": 650,
+      "instructions": "Required: answer ONE of the seven Common App personal essay prompts. UW states no preference among them. Maximum 650 words; responses under 250 words are not accepted.",
+      "sourceUrl": "https://admit.washington.edu/apply/first-year/how-to-apply/writing-section/",
+      "cycleYear": "2026-27",
+      "verified": true,
+      "notes": "Text copied from the live UW page (footer 2026, no cycle year in page text; current December 1 deadline-extension banner on the sibling how-to-apply page). The page's only year reference is a link to a Common App post whose URL contains 2025-2026."
+    },
+    {
+      "id": "uw-5",
+      "collegeId": "uw",
+      "label": "Common App personal essay: Personal growth",
+      "text": "Discuss an accomplishment, event, or realization that sparked a period of personal growth and a new understanding of yourself or others.",
+      "minWords": 250,
+      "wordLimit": 650,
+      "instructions": "Required: answer ONE of the seven Common App personal essay prompts. UW states no preference among them. Maximum 650 words; responses under 250 words are not accepted.",
+      "sourceUrl": "https://admit.washington.edu/apply/first-year/how-to-apply/writing-section/",
+      "cycleYear": "2026-27",
+      "verified": true,
+      "notes": "Text copied from the live UW page (footer 2026, no cycle year in page text; current December 1 deadline-extension banner on the sibling how-to-apply page). The page's only year reference is a link to a Common App post whose URL contains 2025-2026."
+    },
+    {
+      "id": "uw-6",
+      "collegeId": "uw",
+      "label": "Common App personal essay: Engaging topic",
+      "text": "Describe a topic, idea, or concept you find so engaging that it makes you lose all track of time. Why does it captivate you? What or who do you turn to when you want to learn more?",
+      "minWords": 250,
+      "wordLimit": 650,
+      "instructions": "Required: answer ONE of the seven Common App personal essay prompts. UW states no preference among them. Maximum 650 words; responses under 250 words are not accepted.",
+      "sourceUrl": "https://admit.washington.edu/apply/first-year/how-to-apply/writing-section/",
+      "cycleYear": "2026-27",
+      "verified": true,
+      "notes": "Text copied from the live UW page (footer 2026, no cycle year in page text; current December 1 deadline-extension banner on the sibling how-to-apply page). The page's only year reference is a link to a Common App post whose URL contains 2025-2026."
+    },
+    {
+      "id": "uw-7",
+      "collegeId": "uw",
+      "label": "Common App personal essay: Topic of your choice",
+      "text": "Share an essay on any topic of your choice. It can be one you’ve already written, one that responds to a different prompt, or one of your own design.",
+      "minWords": 250,
+      "wordLimit": 650,
+      "instructions": "Required: answer ONE of the seven Common App personal essay prompts. UW states no preference among them. Maximum 650 words; responses under 250 words are not accepted.",
+      "sourceUrl": "https://admit.washington.edu/apply/first-year/how-to-apply/writing-section/",
+      "cycleYear": "2026-27",
+      "verified": true,
+      "notes": "Text copied from the live UW page (footer 2026, no cycle year in page text; current December 1 deadline-extension banner on the sibling how-to-apply page). The page's only year reference is a link to a Common App post whose URL contains 2025-2026."
+    },
+    {
+      "id": "uw-8",
+      "collegeId": "uw",
+      "label": "Common App Additional Information (optional)",
+      "text": "Would you like to share any additional details or qualifications not reflected in the application?",
+      "minWords": null,
+      "wordLimit": 300,
+      "instructions": "Optional. Up to 300 words. UW suggests it for things like unusual academic progression, course availability issues, or academic work not shown elsewhere.",
+      "sourceUrl": "https://admit.washington.edu/apply/first-year/how-to-apply/writing-section/",
+      "cycleYear": "2026-27",
+      "verified": true,
+      "notes": "Text copied from the live UW page (footer 2026, no cycle year in page text; current December 1 deadline-extension banner on the sibling how-to-apply page). The page's only year reference is a link to a Common App post whose URL contains 2025-2026."
+    },
+    {
+      "id": "uw-9",
+      "collegeId": "uw",
+      "label": "Common App Challenges and Circumstances (optional)",
+      "text": "",
+      "minWords": null,
+      "wordLimit": 250,
+      "instructions": "Optional. Response limited to 250 words. For explaining challenges or circumstances that affected the applicant's education.",
+      "sourceUrl": "https://admit.washington.edu/apply/first-year/how-to-apply/writing-section/",
+      "cycleYear": "2026-27",
+      "verified": false,
+      "notes": "UW page describes this section and its 250-word limit but does not print the exact question; it points to the Common App website via a link whose URL says 2025-2026. Text left empty."
+    },
+    {
+      "id": "penn-state-1",
+      "collegeId": "penn-state",
+      "label": "Personal Statement (optional)",
+      "text": "",
+      "minWords": null,
+      "wordLimit": null,
+      "instructions": "Optional. If applying via the Common App, Penn State accepts the Common App Essay as the Penn State Personal Statement.",
+      "sourceUrl": "https://www.psu.edu/resources/first-year-students/steps-to-apply",
+      "cycleYear": "2026-27",
+      "verified": false,
+      "notes": "Penn State's public admissions pages state the Personal Statement is optional but do not print the MyPennState prompt wording or a word limit; the prompt appears to be visible only inside the application. Text left empty."
+    }
+  ],
+  "rubrics": [
+    {
+      "id": "uw-holistic-review",
+      "collegeId": "uw",
+      "title": "UW Holistic Review factors",
+      "criteria": [
+        {
+          "name": "Academic achievement",
+          "description": "Strong overall academic record, shown through grades and the depth, breadth and rigor of courses. This remains the primary factor."
+        },
+        {
+          "name": "College-preparatory coursework",
+          "description": "Using available advanced options such as AP, IB, Running Start or college in the high school, or going beyond minimum subject requirements. No model is favored."
+        },
+        {
+          "name": "Senior year",
+          "description": "Making full use of the final year of high school."
+        },
+        {
+          "name": "Grade trend",
+          "description": "Grades that improve over time."
+        },
+        {
+          "name": "Service and leadership",
+          "description": "Evidence of commitment to community service and to leading others."
+        },
+        {
+          "name": "Significant responsibility",
+          "description": "Carrying real responsibility in family, community, a job or activities."
+        },
+        {
+          "name": "Overcoming disadvantage",
+          "description": "Completing a college-preparatory education despite socio-economic or other disadvantage; considered for Washington state residents only."
+        },
+        {
+          "name": "Unique perspectives",
+          "description": "Showing distinctive perspectives or experiences."
+        }
+      ],
+      "sourceUrl": "https://admit.washington.edu/apply/first-year/holistic-review/",
+      "cycleYear": "2026-27",
+      "verified": true,
+      "notes": "Live page, footer 2026, no cycle year stated. These are review factors, not an essay scoring rubric; UW publishes no weights or scores."
+    },
+    {
+      "id": "penn-state-application-evaluation",
+      "collegeId": "penn-state",
+      "title": "Penn State Application Evaluation factors",
+      "criteria": [
+        {
+          "name": "Academic record",
+          "description": "The most important part of review: academic courses taken, grades earned and course levels across grades 9-11."
+        },
+        {
+          "name": "Test scores",
+          "description": "SAT or ACT scores are considered only if the applicant chooses to provide them; there is no minimum GPA or score."
+        },
+        {
+          "name": "Additional factors",
+          "description": "May include the personal statement and activities list, and for some programs an audition or portfolio review."
+        },
+        {
+          "name": "Roles and experiences",
+          "description": "Reviewers look at the roles an applicant holds, such as student, sibling, athlete, volunteer or employee, to build a class with varied interests."
+        }
+      ],
+      "sourceUrl": "https://www.psu.edu/resources/first-year-students/application-review",
+      "cycleYear": "2026-27",
+      "verified": true,
+      "notes": "Live page, footer 2026, no cycle year stated. General review factors, not an essay rubric. Page also says recommendation letters are not used (steps-to-apply page)."
+    }
+  ],
+  "principles": [
+    {
+      "id": "p-uw-1",
+      "text": "Treat the essay seriously: write in formal, standard English rather than the casual style of a text message.",
+      "sourceName": "UW Admissions",
+      "sourceUrl": "https://admit.washington.edu/apply/first-year/how-to-apply/writing-section/",
+      "verified": true
+    },
+    {
+      "id": "p-uw-2",
+      "text": "Tell a personal story in your own individual voice; many of the strongest statements take that form.",
+      "sourceName": "UW Admissions",
+      "sourceUrl": "https://admit.washington.edu/apply/first-year/how-to-apply/writing-section/",
+      "verified": true
+    },
+    {
+      "id": "p-uw-3",
+      "text": "Keep the writing concise and straightforward, and proofread it repeatedly before submitting.",
+      "sourceName": "UW Admissions",
+      "sourceUrl": "https://admit.washington.edu/apply/first-year/how-to-apply/writing-section/",
+      "verified": true
+    },
+    {
+      "id": "p-uw-4",
+      "text": "The writing must be your own original work; any review by a person or AI tool has to be responsible and ethical.",
+      "sourceName": "UW Admissions",
+      "sourceUrl": "https://admit.washington.edu/apply/first-year/how-to-apply/writing-section/",
+      "verified": true
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@scribe/desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Scribe for Mac",
+  "author": "Scribe",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "predist": "node scripts/prepare.js",
+    "dist": "electron-builder --mac dmg --arm64",
+    "smoke": "playwright test tests"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "electron": "^36.0.0",
+    "electron-builder": "^26.0.0"
+  }
+}
