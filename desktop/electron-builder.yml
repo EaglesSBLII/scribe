@@ -18,6 +18,7 @@ mac:
     - target: dmg
       arch: arm64
   category: public.app-category.education
+  icon: resources/icons/icon.icns
   identity: null
   extendInfo:
     NSMicrophoneUsageDescription: Scribe listens to you so it can write down what you say. Audio never leaves this Mac.

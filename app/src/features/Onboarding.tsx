@@ -19,6 +19,7 @@ export function Onboarding() {
   return (
     <main className="flex h-full items-center justify-center p-6">
       <form onSubmit={submit} noValidate className="w-full max-w-sm">
+        <img src="./icon.svg" alt="" className="-ml-2 h-20 w-20" />
         <h1 className="font-serif text-4xl">Scribe</h1>
         <p className="mt-3 text-muted">
           You talk, Scribe writes it down. Every word of the essay stays yours.

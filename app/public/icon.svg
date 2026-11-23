@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Scribe: your voice (the sound wave) flows down into a pen nib. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d7767"/>
+      <stop offset="1" stop-color="#22483e"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#bg)"/>
+  <g fill="#fbfaf7">
+    <!-- voice: a sound wave, centred on one line -->
+    <rect x="252" y="322" width="40" height="56" rx="20"/>
+    <rect x="332" y="290" width="40" height="120" rx="20"/>
+    <rect x="412" y="250" width="40" height="200" rx="20"/>
+    <rect x="492" y="215" width="40" height="270" rx="20"/>
+    <rect x="572" y="250" width="40" height="200" rx="20"/>
+    <rect x="652" y="290" width="40" height="120" rx="20"/>
+    <rect x="732" y="322" width="40" height="56" rx="20"/>
+    <!-- pen nib -->
+    <path d="M396 584 Q396 540 440 540 L584 540 Q628 540 628 584 C628 680 562 766 512 838 C462 766 396 680 396 584 Z"/>
+  </g>
+  <!-- the nib's slit and breather hole -->
+  <path d="M512 812 L512 676" stroke="#22483e" stroke-width="13" stroke-linecap="round"/>
+  <circle cx="512" cy="654" r="27" fill="#22483e"/>
+</svg>

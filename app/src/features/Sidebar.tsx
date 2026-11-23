@@ -118,7 +118,10 @@ export function Sidebar() {
   return (
     <nav aria-label="Essays" className="flex w-64 shrink-0 flex-col border-r border-line bg-panel">
       <div className="flex items-center justify-between px-4 py-4">
-        <span className="font-serif text-xl">Scribe</span>
+        <span className="flex items-center gap-2 font-serif text-xl">
+          <img src="./icon.svg" alt="" className="h-7 w-7" />
+          Scribe
+        </span>
         <button
           onClick={() => void store.createEssay()}
           className="flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-sm font-medium text-white"
