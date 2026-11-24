@@ -30,7 +30,7 @@ export function CommandChip() {
         data-testid="command-chip"
         data-phase={pending ? 'question' : chip?.phase}
         role="status"
-        className={`pointer-events-auto flex max-w-2xl flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border bg-white px-4 py-1.5 text-sm shadow-md ${tone}`}
+        className={`pointer-events-auto flex max-w-2xl flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border bg-surface px-4 py-1.5 text-sm shadow-md ${tone}`}
       >
         <span>{pending ? pending.question : chip?.text}</span>
         {pending

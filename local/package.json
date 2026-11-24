@@ -1,7 +1,7 @@
 {
   "name": "@scribe/local",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local services for Scribe: runs Whisper and the voice on this machine, serves the web app, and signs in and syncs a phone.",
   "main": "server.js",
   "scripts": {

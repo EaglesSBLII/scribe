@@ -24,6 +24,7 @@ import { playEarcon } from './voice/earcons';
 import { usePaper } from './paper/store';
 import { applySeed } from './colleges/seed';
 import { useColleges } from './colleges/store';
+import { isIpedsId } from './colleges/usColleges';
 import { parseCommand, type Command } from './commands/parse';
 import { removeSegment, resolve, type CommandContext, type SegmentPart } from './commands/run';
 import { speak, stopSpeaking } from './speech';
@@ -703,7 +704,7 @@ export const useStore = create<State>((set, get) => {
       const said = heard.map((h) => h.text).join(' ').replace(/\s+/g, ' ').trim();
       if (!said) return;
       // Said to Scribe by name, so it is a command or a question, never essay text.
-      const cmd = parseCommand(heard) ?? (await restated(said, true));
+      const cmd = parseCommand(heard, { addressed: true }) ?? (await restated(said, true));
       if (cmd) {
         // A command that cannot be carried out is reported, not typed into the essay.
         if (!get().handleCommand(cmd)) {
@@ -828,13 +829,17 @@ export const useStore = create<State>((set, get) => {
       const { colleges, prompts } = useColleges.getState();
       const college = colleges.find((c) => c.id === collegeId);
       const prompt = prompts.find((p) => p.id === promptId);
-      const patch: Partial<EssayRow> = { collegeId: college?.id ?? null, promptId: prompt?.id ?? null };
+      // A school from the big US list is kept by its id even if this device has no row for it yet.
+      const patch: Partial<EssayRow> = { collegeId: college?.id ?? (isIpedsId(collegeId) ? collegeId : null), promptId: prompt?.id ?? null };
       if (prompt) {
         // The prompt's text and limit are copied onto the essay, so later edits
         // to the database do not silently change an essay in progress.
         patch.promptText = prompt.text;
         patch.wordLimit = prompt.wordLimit ?? essay.wordLimit ?? null;
         if (college && /^Untitled essay$/.test(essay.title)) patch.title = `${college.name}: ${prompt.label}`;
+      } else if (isIpedsId(patch.collegeId) && patch.collegeId !== essay.collegeId && essay.promptId) {
+        // Moving to a school with no stored prompts: another school's prompt must not stay behind as if it were this one's.
+        patch.promptText = '';
       }
       patchEssay(id, patch);
     },

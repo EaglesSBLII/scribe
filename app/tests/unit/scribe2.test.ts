@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCommand } from '../../src/commands/parse';
+import { mayChangeEssay, parseCommand } from '../../src/commands/parse';
 import { removeSegment, resolve, type Outcome } from '../../src/commands/run';
 import { fromJson } from '../../src/commands/fromJson';
 import type { RequestJson } from '../../src/llm/assist';
@@ -141,5 +141,121 @@ describe('the model\'s structured reading of a request is checked in code', () =
     expect(fromJson(json({ op: 'delete', target: { unit: 'words', count: 0 } }), 'delete some words')).toBeNull();
     expect(fromJson(json({ op: 'move', target: { paragraph: 2 } }), 'move paragraph two somewhere')).toBeNull();
     expect(fromJson({ op: 'delete' } as RequestJson, 'delete')).toBeNull();
+  });
+});
+
+describe('casual ways of saying things', () => {
+  const said = (s: string, addressed = false) => parseCommand(s, { addressed });
+
+  it.each([
+    'Scratch that.', 'strike that', 'Scrap that.', 'nix that', 'kill that', 'Nuke that.', 'ditch that', 'trash that', 'lose that', 'cut that',
+    'Delete that.', 'delete it', 'erase that', 'remove that', 'take that back', 'Take that out.', 'get rid of that', 'No, delete that.',
+    'delete that last bit', 'delete the last thing I said', 'Okay, scratch that.', 'Actually, scratch that.', 'Wait, scratch that.',
+    'Um, scratch that please.', 'Can you scratch that?', 'Just delete that for me.', 'Yo, scratch that real quick.', 'get rid of what I just said',
+  ])('"%s" deletes what was just said', (s) => {
+    expect(said(s)).toEqual({ k: 'deleteUtterance' });
+  });
+
+  it.each(['undo', 'Undo that.', 'undo it', 'Oops, undo.', 'revert that', 'put that back', 'bring it back', 'undelete that', 'Okay undo that please.'])(
+    '"%s" undoes',
+    (s) => expect(said(s)).toEqual({ k: 'undo' }),
+  );
+
+  it('slang for delete works with the usual targets', () => {
+    expect(said('get rid of the last sentence')).toEqual({ k: 'delete', what: 'sentences', from: 'last', para: undefined });
+    expect(said('Take out that last sentence.')).toEqual({ k: 'delete', what: 'sentences', from: 'last', para: undefined });
+    expect(said('take the last sentence out')).toEqual({ k: 'delete', what: 'sentences', from: 'last', para: undefined });
+    expect(said('kill the last line')).toEqual({ k: 'delete', what: 'sentences', from: 'last', para: undefined });
+    expect(said('Can you nuke paragraph two?')).toEqual({ k: 'delete', what: 'paragraph', para: 2 });
+    expect(said('ditch the second para')).toEqual({ k: 'delete', what: 'paragraph', para: 2 });
+    expect(said('chop the last three words')).toEqual({ k: 'deleteWords', count: 3 });
+    expect(said('back up two words')).toEqual({ k: 'deleteWords', count: 2 });
+    expect(said('delete the last couple of words')).toEqual({ k: 'deleteWords', count: 2 });
+    expect(said('get rid of the last few words')).toEqual({ k: 'deleteWords', count: 3 });
+    expect(said('lose the last word')).toEqual({ k: 'deleteWords', count: 1 });
+  });
+
+  it('reading back, by other names', () => {
+    expect(said('read that back')).toEqual({ k: 'read', what: 'essay' });
+    expect(said('play it back')).toEqual({ k: 'read', what: 'essay' });
+    expect(said('read the whole thing')).toEqual({ k: 'read', what: 'essay' });
+    expect(said('read me the last line')).toEqual({ k: 'read', what: 'sentence', sent: 'last', para: undefined });
+  });
+
+  it('looser phrasings count only when said to Scribe by name', () => {
+    const loose: [string, unknown][] = [
+      ['Forget that.', { k: 'deleteUtterance' }],
+      ['oops', { k: 'deleteUtterance' }],
+      ['My bad.', { k: 'deleteUtterance' }],
+      ["That's not what I meant.", { k: 'deleteUtterance' }],
+      ['that came out wrong', { k: 'deleteUtterance' }],
+      ['go back', { k: 'undo' }],
+      ['How long is my essay?', { k: 'count', scope: 'essay' }],
+      ['What am I at?', { k: 'count', scope: 'essay' }],
+      ['Am I over the limit?', { k: 'count', scope: 'left' }],
+      ['how much room do I have left', { k: 'count', scope: 'left' }],
+      ['What did I just say?', { k: 'read', what: 'sentence', sent: 'last' }],
+      ['what do I have so far', { k: 'read', what: 'essay' }],
+      ['Be quiet.', { k: 'mode', mode: 'draft' }],
+      ["Let's talk.", { k: 'mode', mode: 'conversation' }],
+      ['coach me', { k: 'mode', mode: 'coach' }],
+      ['keep going', { k: 'gotoEnd' }],
+    ];
+    for (const [s, want] of loose) {
+      expect(said(s, true), s).toEqual(want);
+      expect(said(s, false), `${s} (while dictating)`).toBeNull();
+    }
+  });
+
+  it('ordinary sentences that merely contain these words stay dictation', () => {
+    for (const s of [
+      'So I went to the dock.', 'I had to drop the class that spring.', 'Take out the trash, my mother said.', 'We lost that game.',
+      'Just then the engine caught.', 'Okay, I thought, try again.', 'He told me to forget it.', 'I wanted to scratch that itch.',
+      'Kill the engine, he said.', 'Cut the rope and let it go.', 'Actually, it was Tuesday.', 'Can you believe it?', 'Keep going, he told me.',
+      'It was my bad idea to begin with.', 'Read the manual first.', 'I could not take that back.',
+    ]) {
+      expect(said(s), s).toBeNull();
+    }
+  });
+
+  it('dictated words inside an insert are kept exactly, even when they look like slang', () => {
+    const cmd = said('insert kill the engine after sentence 1');
+    expect(cmd).toMatchObject({ k: 'insert', at: { k: 'after', sent: 1 } });
+    expect((cmd as { words: { text: string }[] }).words.map((w) => w.text).join(' ')).toBe('kill the engine');
+  });
+});
+
+describe('what Whisper does to spoken requests', () => {
+  it('a replacement keeps the essay\'s own capitals, not the ones Whisper adds to a command', () => {
+    const doc = { paragraphs: [{ id: 'p1', nodes: [{ t: 'text' as const, text: 'I was happy. Happy is not the word. We left Boston.' }] }] };
+    const ctx = { activeParaId: 'p1', wordLimit: null, cursor: null } as never;
+    const text = (cmd: string) => {
+      const out = resolve(parseCommand(cmd)!, doc, ctx) as Outcome;
+      if (out.k !== 'edit') throw new Error(out.k);
+      const op = out.op as { k: string; nodes?: { text: string }[]; ops?: { nodes: { text: string }[] }[] };
+      return (op.nodes ?? op.ops![0].nodes)[0].text;
+    };
+    expect(text('Replace Happy with Relieved.')).toBe('I was relieved. Relieved is not the word. We left Boston.');
+    expect(text('replace Boston with Chicago')).toBe('I was happy. Happy is not the word. We left Chicago.');
+  });
+  it('accepts the name and "undo" as they are sometimes written', async () => {
+    const { readWake } = await import('../../src/voice/wake');
+    expect(readWake([{ text: 'Jaarvis,' }, { text: 'Delete' }, { text: 'the' }, { text: 'last' }, { text: 'sentence.' }]).wake).toBe(true);
+    expect(parseCommand('Ando, Ando,', { addressed: true })).toEqual({ k: 'undo' });
+    expect(parseCommand('Nuked the last paragraph.')).toEqual({ k: 'delete', what: 'paragraph', para: 'last' });
+  });
+});
+
+describe('which requests are heard with the exact transcriber', () => {
+  const w = (s: string) => s.split(' ').map((text) => ({ text }));
+  it('requests that edit the essay, with or without filler in front', () => {
+    for (const s of ['delete the last five words', 'Okay, can you just delete the last sentence?', 'scratch that', 'get rid of paragraph two', 'Undo.', 'replace happy with relieved', 'oops']) {
+      expect(mayChangeEssay(w(s)), s).toBe(true);
+    }
+  });
+  it('questions are not, even when they contain such a word', () => {
+    for (const s of ['Should I cut the line about the notebook?', 'What should I add about my grandfather?', 'Is the ending clear?', 'How many words do I have?']) {
+      expect(mayChangeEssay(w(s)), s).toBe(false);
+    }
   });
 });

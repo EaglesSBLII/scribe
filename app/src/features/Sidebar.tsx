@@ -54,7 +54,7 @@ export function Sidebar() {
           if (dragId && dragId !== essay.id) store.moveEssay(dragId, sorted.indexOf(essay));
           setDragId(null);
         }}
-        className={`group relative rounded-md ${isCurrent ? 'bg-white shadow-sm' : 'hover:bg-white/60'}`}
+        className={`group relative rounded-md ${isCurrent ? 'bg-surface shadow-sm' : 'hover:bg-raised'}`}
       >
         {renaming === essay.id ? (
           <input
@@ -103,7 +103,7 @@ export function Sidebar() {
           <MoreHorizontal size={16} />
         </button>
         {menuFor === essay.id && (
-          <div role="menu" className="absolute right-1 top-9 z-20 w-44 rounded-md border border-line bg-white py-1 text-sm shadow-lg">
+          <div role="menu" className="absolute right-1 top-9 z-20 w-44 rounded-md border border-line bg-surface py-1 text-sm shadow-lg">
             <MenuItem icon={<Pencil size={14} />} label="Rename" onClick={() => { setRenaming(essay.id); setMenuFor(null); }} />
             {!essay.archived && (
               <>
@@ -138,7 +138,7 @@ export function Sidebar() {
             closeNav();
             void store.createEssay();
           }}
-          className="flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-sm font-medium text-white"
+          className="flex items-center gap-1 rounded-md border border-line px-2 py-1 text-sm text-ink hover:bg-raised"
         >
           <Plus size={14} /> New essay
         </button>
@@ -166,7 +166,7 @@ export function Sidebar() {
             closeNav();
             useColleges.getState().setAdminOpen(true);
           }}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-white/60"
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-raised"
         >
           <GraduationCap size={16} /> Colleges and prompts
         </button>
@@ -176,7 +176,7 @@ export function Sidebar() {
             closeNav();
             useMemory.getState().setScreenOpen(true);
           }}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-white/60"
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-raised"
         >
           <Fingerprint size={16} /> My voice and memory
         </button>
@@ -186,7 +186,7 @@ export function Sidebar() {
             closeNav();
             useSettings.getState().setScreenOpen(true);
           }}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-white/60"
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-raised"
         >
           <SlidersHorizontal size={16} /> Settings
         </button>

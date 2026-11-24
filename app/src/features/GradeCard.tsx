@@ -31,7 +31,7 @@ function History({ history, shownId, onShow }: { history: GradeRow[]; shownId?: 
             <button
               onClick={() => onShow(g)}
               aria-current={g.id === shownId ? 'true' : undefined}
-              className={`flex w-full justify-between rounded px-1.5 py-0.5 text-left ${g.id === shownId ? 'bg-white font-medium' : 'hover:bg-white/60'}`}
+              className={`flex w-full justify-between rounded px-1.5 py-0.5 text-left ${g.id === shownId ? 'bg-surface font-medium' : 'hover:bg-raised'}`}
             >
               <span>
                 Draft {history.length - i} · {dateTime(g.ts)} · {g.wordCount} words
@@ -69,12 +69,12 @@ export function GradeCard({ essay }: { essay: EssayRow }) {
 
   return (
     <div className="space-y-3">
-      <button onClick={() => void grade()} disabled={busy} className="w-full rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white">
+      <button onClick={() => void grade()} disabled={busy} className="w-full rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-on-accent">
         {busy ? 'Grading…' : 'Grade this draft'}
       </button>
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       {shown && (
-        <div data-testid="grade" className="space-y-2 rounded-md bg-white p-3 shadow-sm">
+        <div data-testid="grade" className="space-y-2 rounded-md bg-surface p-3 shadow-sm">
           <div className="flex items-baseline justify-between">
             <span className="font-serif text-3xl" data-testid="grade-total">
               {shown.total}
@@ -82,7 +82,7 @@ export function GradeCard({ essay }: { essay: EssayRow }) {
             </span>
             <span className="text-xs text-muted">{reused ? 'Same text as before: same score' : dateTime(shown.ts)}</span>
           </div>
-          <p className="text-xs font-medium text-[#6b5310]">{GRADE_LABEL}</p>
+          <p className="text-xs font-medium text-warn">{GRADE_LABEL}</p>
           <ul className="space-y-2 text-sm">
             {shown.sections.map((s) => {
               const name = SECTIONS.find((x) => x.id === s.id)?.name ?? s.id;
@@ -100,7 +100,7 @@ export function GradeCard({ essay }: { essay: EssayRow }) {
                   {s.quote ? (
                     <p>
                       <span className="mr-1 text-xs font-medium text-muted">{locate(essay.doc, s.quote) ?? 'earlier draft'}</span>
-                      <q className="rounded bg-[#e3efe9] px-0.5 font-serif">{s.quote}</q>
+                      <q className="rounded bg-accent-soft px-0.5 font-serif">{s.quote}</q>
                     </p>
                   ) : (
                     <p className="text-xs text-danger">The model did not point to an exact line for this score.</p>

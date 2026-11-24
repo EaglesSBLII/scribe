@@ -27,7 +27,7 @@ function Reply({ text, studentText }: { text: string; studentText: string }) {
         typeof part === 'string' ? (
           <span key={i}>{part}</span>
         ) : (
-          <q key={i} title={part.yours ? 'Your words' : 'An example, not your words'} className={part.yours ? 'rounded bg-[#e3efe9] px-0.5 font-serif' : 'italic text-muted'}>
+          <q key={i} title={part.yours ? 'Your words' : 'An example, not your words'} className={part.yours ? 'rounded bg-accent-soft px-0.5 font-serif' : 'italic text-muted'}>
             {part.text}
           </q>
         ),
@@ -50,7 +50,7 @@ function ModelPicker() {
         aria-label="Counselor model"
         value={model}
         onChange={(e) => void useSettings.getState().setModel(e.target.value)}
-        className="max-w-36 rounded border border-line bg-white px-1 py-0.5"
+        className="max-w-36 rounded border border-line bg-surface px-1 py-0.5"
       >
         {options.map((m) => (
           <option key={m} value={m}>
@@ -95,7 +95,7 @@ function FinishChecks({ essay }: { essay: EssayRow }) {
 
   return (
     <div className="space-y-3">
-      <button onClick={() => void run()} disabled={running} className="w-full rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white">
+      <button onClick={() => void run()} disabled={running} className="w-full rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-on-accent">
         {running ? 'Checking…' : 'Run final checks'}
       </button>
       {findings && (
@@ -139,7 +139,7 @@ function ExportBar({ essay }: { essay: EssayRow }) {
             aria-label="Paper format"
             value={chosen?.id ?? ''}
             onChange={(e) => store.setFormat(essay.id, e.target.value || null)}
-            className="min-w-0 flex-1 rounded border border-line bg-white px-1 py-0.5 text-ink"
+            className="min-w-0 flex-1 rounded border border-line bg-surface px-1 py-0.5 text-ink"
           >
             <option value="">Scribe default</option>
             {samples.map((s) => (
@@ -149,7 +149,7 @@ function ExportBar({ essay }: { essay: EssayRow }) {
             ))}
           </select>
         </label>
-        <label className={`shrink-0 cursor-pointer rounded-md border border-line bg-white px-2 py-1 ${busy ? 'opacity-50' : ''}`}>
+        <label className={`shrink-0 cursor-pointer rounded-md border border-line bg-surface px-2 py-1 ${busy ? 'opacity-50' : ''}`}>
           {busy ? 'Reading…' : 'Learn from a sample'}
           <input
             type="file"
@@ -169,7 +169,7 @@ function ExportBar({ essay }: { essay: EssayRow }) {
       </div>
       {error && <p role="alert" className="text-danger">{error}</p>}
       {chosen && (
-        <div data-testid="format-notes" className="rounded-md bg-white p-2 text-xs shadow-sm">
+        <div data-testid="format-notes" className="rounded-md bg-surface p-2 text-xs shadow-sm">
           <p className="font-medium">Learned from {chosen.fileName}. Only its formatting was kept.</p>
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
             {chosen.format.notes.map((n) => (
@@ -190,7 +190,7 @@ function ExportBar({ essay }: { essay: EssayRow }) {
       <div className="flex items-center gap-2">
         <span className="text-muted">Export</span>
         {(['docx', 'pdf', 'txt'] as ExportFormat[]).map((f) => (
-          <button key={f} onClick={() => void exportEssay(essay.title, essay.doc, f, chosen?.format ?? null)} className="rounded-md border border-line bg-white px-2 py-1">
+          <button key={f} onClick={() => void exportEssay(essay.title, essay.doc, f, chosen?.format ?? null)} className="rounded-md border border-line bg-surface px-2 py-1">
             .{f}
           </button>
         ))}
@@ -239,7 +239,7 @@ export function CounselorPanel() {
       <div className="flex items-center justify-between gap-2 px-4 py-3">
         <h2 className="font-semibold">Counselor</h2>
         <ModelPicker />
-        <button aria-label="Close counselor" onClick={() => counselor.setOpen(false)} className="rounded p-1 text-muted hover:bg-white">
+        <button aria-label="Close counselor" onClick={() => counselor.setOpen(false)} className="rounded p-1 text-muted hover:bg-raised">
           <X size={16} />
         </button>
       </div>
@@ -248,30 +248,30 @@ export function CounselorPanel() {
         <label className="block text-xs font-medium text-muted">
           Essay prompt
           <textarea
-            key={`${essay.id}:${essay.promptId ?? ''}`}
+            key={`${essay.id}:${essay.promptId ?? ''}:${essay.promptText ?? ''}`}
             aria-label="Essay prompt"
             rows={2}
             defaultValue={essay.promptText ?? ''}
             placeholder="Paste the question this essay answers."
             onBlur={(e) => useStore.getState().setPromptText(essay.id, e.target.value)}
-            className="mt-1 w-full resize-y rounded border border-line bg-white px-2 py-1 text-sm font-normal text-ink"
+            className="mt-1 w-full resize-y rounded border border-line bg-surface px-2 py-1 text-sm font-normal text-ink"
           />
         </label>
 
         {essay.stage === 'brainstorm' && (
           <div className="space-y-2">
             <div className="flex gap-2">
-              <button disabled={busy} onClick={() => void counselor.startBrainstorm(view, { spoken: useDictation.getState().on })} className="flex-1 rounded-md bg-accent px-2 py-1.5 text-sm font-medium text-white">
+              <button disabled={busy} onClick={() => void counselor.startBrainstorm(view, { spoken: useDictation.getState().on })} className="flex-1 rounded-md bg-accent px-2 py-1.5 text-sm font-medium text-on-accent">
                 {messages.length ? 'Ask me another' : 'Start brainstorm'}
               </button>
-              <button disabled={busy} onClick={() => void counselor.mapStories(view)} className="flex-1 rounded-md border border-line bg-white px-2 py-1.5 text-sm">
+              <button disabled={busy} onClick={() => void counselor.mapStories(view)} className="flex-1 rounded-md border border-line bg-surface px-2 py-1.5 text-sm">
                 Map my stories
               </button>
             </div>
             {stories.length > 0 && (
               <ul data-testid="stories" className="space-y-2">
                 {stories.map((s) => (
-                  <li key={s.id} className="rounded-md bg-white p-2 text-sm shadow-sm">
+                  <li key={s.id} className="rounded-md bg-surface p-2 text-sm shadow-sm">
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="font-medium">{s.title}</span>
                       <span className="shrink-0 text-xs text-muted" title="How well this story fits the prompt">
@@ -290,7 +290,7 @@ export function CounselorPanel() {
         {essay.stage === 'refine' && (
           <div className="flex flex-wrap gap-1.5">
             {QUICK_ASKS.map((q) => (
-              <button key={q} disabled={busy} onClick={() => send(q)} className="rounded-full border border-line bg-white px-2.5 py-1 text-xs">
+              <button key={q} disabled={busy} onClick={() => send(q)} className="rounded-full border border-line bg-surface px-2.5 py-1 text-xs">
                 {q}
               </button>
             ))}
@@ -326,7 +326,7 @@ export function CounselorPanel() {
                       useStore.getState().essays.filter((x) => x.accountId === essay.accountId).map((x) => ({ essayId: x.id, title: x.title, text: docText(x.doc) })),
                     )
                   }
-                  className="rounded-md border border-line bg-white px-2 py-1 text-xs"
+                  className="rounded-md border border-line bg-surface px-2 py-1 text-xs"
                 >
                   {memoryBusy ? 'Reading your writing…' : 'Describe my voice, so feedback can protect it'}
                 </button>
@@ -352,7 +352,7 @@ export function CounselorPanel() {
           <p className="text-muted">Ask anything about your essay, by typing or with the microphone. The counselor gives advice only.</p>
         )}
         {messages.map((m) => (
-          <div key={m.id} data-role={m.role} className={m.role === 'user' ? 'ml-8 rounded-lg bg-white px-3 py-2 shadow-sm' : 'mr-4 whitespace-pre-wrap leading-relaxed'}>
+          <div key={m.id} data-role={m.role} className={m.role === 'user' ? 'ml-8 rounded-lg bg-surface px-3 py-2 shadow-sm' : 'mr-4 whitespace-pre-wrap leading-relaxed'}>
             {m.role === 'user' ? m.text : <Reply text={m.text} studentText={studentText} />}
             {m.role === 'assistant' && memoryOn && (
               <div className="mt-1 flex gap-2 text-xs">
@@ -361,7 +361,7 @@ export function CounselorPanel() {
                     key={verdict}
                     aria-pressed={ratingOf(m.text) === verdict}
                     onClick={() => void useMemory.getState().rateFeedback(m.text, verdict, essay.id, essay.title)}
-                    className={`rounded-full border px-2 py-0.5 ${ratingOf(m.text) === verdict ? 'border-accent bg-accent text-white' : 'border-line bg-white text-muted'}`}
+                    className={`rounded-full border px-2 py-0.5 ${ratingOf(m.text) === verdict ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface text-muted'}`}
                   >
                     {verdict === 'accepted' ? 'Useful' : 'Not for me'}
                   </button>
@@ -399,7 +399,7 @@ export function CounselorPanel() {
               }
             }}
             placeholder="Ask the counselor…"
-            className="min-w-0 flex-1 resize-none rounded-md border border-line bg-white px-2 py-1.5 text-sm"
+            className="min-w-0 flex-1 resize-none rounded-md border border-line bg-surface px-2 py-1.5 text-sm"
           />
           <button
             type="button"
@@ -407,16 +407,16 @@ export function CounselorPanel() {
             aria-pressed={listening}
             title={listening ? 'Stop listening' : 'Ask by voice'}
             onClick={() => toggleDictation('counselor')}
-            className={`rounded-md p-2 ${listening ? 'bg-danger text-white' : 'border border-line bg-white'}`}
+            className={`rounded-md p-2 ${listening ? 'bg-danger text-on-accent' : 'border border-line bg-surface'}`}
           >
             {listening ? <MicOff size={16} /> : <Mic size={16} />}
           </button>
           {busy ? (
-            <button type="button" aria-label="Stop the reply" title="Stop the reply" onClick={() => counselor.stop()} className="rounded-md border border-line bg-white p-2">
+            <button type="button" aria-label="Stop the reply" title="Stop the reply" onClick={() => counselor.stop()} className="rounded-md border border-line bg-surface p-2">
               <Square size={16} />
             </button>
           ) : (
-            <button type="submit" aria-label="Send" title="Send" disabled={!draft.trim()} className="rounded-md bg-accent p-2 text-white">
+            <button type="submit" aria-label="Send" title="Send" disabled={!draft.trim()} className="rounded-md bg-accent p-2 text-on-accent">
               <Send size={16} />
             </button>
           )}

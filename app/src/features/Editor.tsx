@@ -212,7 +212,7 @@ function DictationButton() {
         aria-label="Wake word"
         title={wakeWord ? 'Listening for “Jarvis”. Click to switch the wake word off.' : 'Switch on the wake word: say “Jarvis” to start, hands-free.'}
         onClick={() => void setWakeWord(!wakeWord)}
-        className={`flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1.5 text-sm ${wakeWord ? 'border-accent bg-[#e3efe9] font-medium text-accent' : 'border-line text-muted'}`}
+        className={`flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1.5 text-sm ${wakeWord ? 'border-accent bg-accent-soft font-medium text-accent' : 'border-line text-muted'}`}
       >
         <Ear size={15} /> Jarvis
       </button>
@@ -228,7 +228,7 @@ function DictationButton() {
         aria-label={on ? 'Stop dictation' : 'Start dictation'}
         aria-pressed={on}
         onClick={() => toggleDictation('essay')}
-        className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-white ${on ? 'bg-danger' : 'bg-accent'}`}
+        className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-on-accent ${on ? 'bg-danger' : 'bg-accent'}`}
       >
         {on ? <MicOff size={16} /> : <Mic size={16} />}
         {on ? 'Stop' : 'Dictate'}
@@ -268,7 +268,7 @@ export function Editor() {
           Show essays
         </button>
         <p>Create an essay to start writing.</p>
-        <button onClick={() => void store.createEssay()} className="rounded-md bg-accent px-3 py-2 font-medium text-white">
+        <button onClick={() => void store.createEssay()} className="rounded-md bg-accent px-3 py-2 font-medium text-on-accent">
           New essay
         </button>
       </main>
@@ -298,7 +298,7 @@ export function Editor() {
           aria-pressed={Boolean(essay.mathMode)}
           title="Math and physics mode: spoken mathematics is written as mathematics. It only writes down what you say."
           onClick={() => store.setMathMode(essay.id, !essay.mathMode)}
-          className={`flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1.5 text-sm ${essay.mathMode ? 'border-accent bg-[#e3efe9] font-medium text-accent' : 'border-line text-muted'}`}
+          className={`flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1.5 text-sm ${essay.mathMode ? 'border-accent bg-accent-soft font-medium text-accent' : 'border-line text-muted'}`}
         >
           <Sigma size={15} /> Math
         </button>
@@ -369,7 +369,7 @@ function BigMic() {
       aria-label={on ? 'Stop dictating' : 'Dictate'}
       aria-pressed={on}
       onClick={() => toggleDictation('essay')}
-      className={`fixed bottom-6 left-1/2 z-20 flex h-20 w-20 -translate-x-1/2 items-center justify-center rounded-full text-white shadow-xl md:hidden ${on ? 'bg-danger' : 'bg-accent'} ${hearing ? 'ring-4 ring-danger/30' : ''}`}
+      className={`fixed bottom-6 left-1/2 z-20 flex h-20 w-20 -translate-x-1/2 items-center justify-center rounded-full text-on-accent shadow-xl md:hidden ${on ? 'bg-danger' : 'bg-accent'} ${hearing ? 'ring-4 ring-danger/30' : ''}`}
     >
       {on ? <MicOff size={34} /> : <Mic size={34} />}
     </button>
@@ -382,7 +382,7 @@ function SyncNote() {
   if (queued === 0 && (online || !remote)) return null;
   const waiting = queued === 1 ? '1 recording is saved' : `${queued} recordings are saved`;
   return (
-    <div data-testid="sync-note" role="status" className="border-b border-line bg-[#f6ecc9] px-3 py-1.5 text-sm md:px-6">
+    <div data-testid="sync-note" role="status" className="border-b border-line bg-warn-soft px-3 py-1.5 text-sm md:px-6">
       {queued > 0
         ? `${online ? 'Connected' : 'Offline'}: ${waiting} on this device and will be transcribed ${online ? 'now' : 'when connected'}.`
         : 'Offline. You can keep dictating; recordings are saved on this device and transcribed when connected.'}

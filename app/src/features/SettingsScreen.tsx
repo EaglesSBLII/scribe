@@ -7,6 +7,7 @@ import { setWakeWord } from '../dictation/session';
 import { EARCONS, playEarcon } from '../voice/earcons';
 import { useStore } from '../store';
 import { forgetRemote, useSync } from '../sync';
+import { UpdateCard } from './UpdateCard';
 
 const MODES: { id: CounselorMode; name: string; what: string }[] = [
   { id: 'draft', name: 'Draft (quiet)', what: 'Only reacts to commands and to questions you ask by name.' },
@@ -41,7 +42,7 @@ export function SettingsScreen() {
     });
   }, []);
 
-  const select = 'rounded border border-line bg-white px-2 py-1 text-sm';
+  const select = 'rounded border border-line bg-surface px-2 py-1 text-sm';
   const withCurrent = (list: string[], current: string) => (list.includes(current) ? list : [current, ...list]);
 
   return (
@@ -90,7 +91,7 @@ export function SettingsScreen() {
                   </option>
                 ))}
               </select>
-              <button aria-label="Hear this voice" title="Hear this voice" onClick={() => speak('Hi. Tell me what happened, in your own words.')} className="rounded border border-line bg-white p-1.5">
+              <button aria-label="Hear this voice" title="Hear this voice" onClick={() => speak('Hi. Tell me what happened, in your own words.')} className="rounded border border-line bg-surface p-1.5">
                 <Play size={14} />
               </button>
             </span>
@@ -130,7 +131,7 @@ export function SettingsScreen() {
             return (
               <Row key={cue.id} label={cue.label}>
                 <span className="flex items-center gap-2">
-                  <button aria-label={`Play: ${cue.label}`} title="Play" onClick={() => playEarcon(cue.id, { force: true })} className="rounded border border-line bg-white p-1.5">
+                  <button aria-label={`Play: ${cue.label}`} title="Play" onClick={() => playEarcon(cue.id, { force: true })} className="rounded border border-line bg-surface p-1.5">
                     <Play size={14} />
                   </button>
                   <input
@@ -146,6 +147,7 @@ export function SettingsScreen() {
         </section>
 
         <PhoneAccess />
+        <UpdateCard />
       </div>
     </div>
   );
@@ -170,7 +172,7 @@ function PhoneAccess() {
         <Row label="Signed in to your Mac" hint="Speech, the counselor and the voice all run on the Mac. Your essays are also kept here, so you can keep dictating when the Mac is out of reach. A web app cannot listen in the background on an iPhone: keep Scribe open on screen while you talk.">
           <button
             onClick={() => void platform.logout().then(() => { forgetRemote(); window.location.reload(); })}
-            className="rounded border border-line bg-white px-3 py-1 text-sm"
+            className="rounded border border-line bg-surface px-3 py-1 text-sm"
           >
             Sign out
           </button>
@@ -205,15 +207,15 @@ function PhoneAccess() {
             placeholder={enabled ? 'New password' : 'Choose a password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-44 rounded border border-line bg-white px-2 py-1 text-sm"
+            className="w-44 rounded border border-line bg-surface px-2 py-1 text-sm"
           />
-          <button onClick={() => void turnOn()} className="rounded border border-line bg-white px-3 py-1 text-sm">
+          <button onClick={() => void turnOn()} className="rounded border border-line bg-surface px-3 py-1 text-sm">
             {enabled ? 'Change password' : 'Turn on'}
           </button>
           {enabled && (
             <button
               onClick={() => void platform.remoteDisable(email).then((r) => { setEnabled(r.enabled); setNote('Phone access is off. Every device was signed out.'); })}
-              className="rounded border border-line bg-white px-3 py-1 text-sm text-danger"
+              className="rounded border border-line bg-surface px-3 py-1 text-sm text-danger"
             >
               Turn off
             </button>

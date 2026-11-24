@@ -20,6 +20,9 @@ extraResources:
 asarUnpack:
   - "**/node_modules/sherpa-onnx-*/**"
 npmRebuild: false
+# No certificate (identity: null below), so the bundle is signed ad-hoc here, before the dmg is made.
+# The in-app updater downloads that dmg from the GitHub release: see docs/updates.md.
+afterPack: scripts/adhoc-sign.js
 mac:
   target:
     - target: dmg

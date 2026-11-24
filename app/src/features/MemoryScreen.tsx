@@ -9,7 +9,7 @@ import type { MemoryRow } from '../db/schema';
 function Item({ row, children }: { row: MemoryRow; children?: React.ReactNode }) {
   const memory = useMemory.getState();
   return (
-    <li data-testid={`memory-${row.kind}`} className="flex items-start gap-2 rounded-md border border-line bg-white p-3">
+    <li data-testid={`memory-${row.kind}`} className="flex items-start gap-2 rounded-md border border-line bg-surface p-3">
       <div className="min-w-0 flex-1 space-y-1">
         <textarea
           aria-label={`Edit ${row.kind} note`}
@@ -111,7 +111,7 @@ export function MemoryScreen() {
           <h3 className="font-semibold">Words I use often</h3>
           <ul data-testid="vocabulary" className="flex flex-wrap gap-1.5">
             {profile.vocabulary.map((v) => (
-              <li key={v.word} className="flex items-center gap-1 rounded-full border border-line bg-white py-0.5 pl-2.5 pr-1 text-sm">
+              <li key={v.word} className="flex items-center gap-1 rounded-full border border-line bg-surface py-0.5 pl-2.5 pr-1 text-sm">
                 {v.word}
                 {v.count > 0 && <span className="text-xs text-muted">{v.count}</span>}
                 <button aria-label={`Remove ${v.word}`} title="Not one of my words" onClick={() => removeWord(v.word)} className="rounded-full p-0.5 text-muted hover:bg-panel">
@@ -133,8 +133,8 @@ export function MemoryScreen() {
               setNewWord('');
             }}
           >
-            <input aria-label="Add a word" value={newWord} onChange={(e) => setNewWord(e.target.value)} placeholder="Add a word that is yours" className="w-64 rounded border border-line bg-white px-2 py-1 text-sm" />
-            <button type="submit" className="rounded-md border border-line bg-white px-2 py-1 text-sm">
+            <input aria-label="Add a word" value={newWord} onChange={(e) => setNewWord(e.target.value)} placeholder="Add a word that is yours" className="w-64 rounded border border-line bg-surface px-2 py-1 text-sm" />
+            <button type="submit" className="rounded-md border border-line bg-surface px-2 py-1 text-sm">
               Add
             </button>
           </form>
@@ -143,7 +143,7 @@ export function MemoryScreen() {
         <section className="space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">How I write</h3>
-            <button disabled={busy || !enabled} onClick={() => void memory.refreshFromWriting(sources)} className="rounded-md bg-accent px-2 py-1 text-sm font-medium text-white">
+            <button disabled={busy || !enabled} onClick={() => void memory.refreshFromWriting(sources)} className="rounded-md bg-accent px-2 py-1 text-sm font-medium text-on-accent">
               {busy ? 'Reading your writing…' : 'Describe my voice from my essays'}
             </button>
           </div>
@@ -163,8 +163,8 @@ export function MemoryScreen() {
               setNewTone('');
             }}
           >
-            <input aria-label="Add a note about how you write" value={newTone} onChange={(e) => setNewTone(e.target.value)} placeholder="Add your own note, e.g. I never use semicolons" className="flex-1 rounded border border-line bg-white px-2 py-1 text-sm" />
-            <button type="submit" className="rounded-md border border-line bg-white px-2 py-1 text-sm">
+            <input aria-label="Add a note about how you write" value={newTone} onChange={(e) => setNewTone(e.target.value)} placeholder="Add your own note, e.g. I never use semicolons" className="flex-1 rounded border border-line bg-surface px-2 py-1 text-sm" />
+            <button type="submit" className="rounded-md border border-line bg-surface px-2 py-1 text-sm">
               Add
             </button>
           </form>

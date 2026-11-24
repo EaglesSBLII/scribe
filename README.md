@@ -29,7 +29,11 @@ Get **Scribe-0.1.0-arm64.dmg** from the [latest release](https://github.com/Eagl
 
    Any other model you have in Ollama can be chosen in the counselor panel.
 
-Everything you write stays on your Mac. Scribe never connects to the internet.
+Everything you write stays on your Mac. The one thing the Mac app ever contacts is GitHub's release page, to see whether a newer Scribe exists; nothing you write is sent. See [docs/updates.md](docs/updates.md).
+
+### Updating
+
+From 0.3.0 the Mac app updates itself, the way Chilaka does: a small banner says a new version is available, **Update** downloads it with a progress bar, and **Restart** swaps it in. Settings has "Check for updates" and a switch for downloading automatically. Versions before 0.3.0 have no updater, so the first 0.3.0 install is by hand.
 
 ## Setup from source
 
@@ -149,6 +153,10 @@ More things you can say:
 | “Delete the last five words” / “delete the last word” | Removes exactly that many. |
 | “Go back to the sentence about the engine” | Scribe finds it, reads it back and asks “this one?”. New words then go after it. |
 | “Coach mode” / “draft mode” / “conversation mode” | Changes how much the counselor speaks up. |
+
+Casual phrasing works too. "Scratch that", "strike that", "nix that", "get rid of that" and "take that back" all remove what you just said; "get rid of", "take out", "kill", "nuke", "ditch" and "drop" all mean delete ("take out the last sentence", "nuke paragraph two"); and filler around a request is ignored ("okay, can you just delete the last three words for me"). Looser phrases such as "oops", "my bad", "forget that", "go back", "how long is my essay", "am I over the limit", "what did I just say", "be quiet" and "let's talk" count only when said to Jarvis by name, because on their own they could be part of your essay.
+
+Measured on 232 recorded requests (58 phrasings, four synthetic voices), the fixed rules alone understood all 232 (100%), and none of 40 ordinary sentences using the same words was taken as a command. Requests the rules miss go to the local model, which is not counted in that figure.
 
 Scribe never guesses at a deletion. If a request is unclear it asks out loud; if it would remove more than a sentence it reads back what will go and waits for “yes, delete it”. Every applied command plays a short sound, shows a chip with one-tap Undo, and can be undone by saying “undo”.
 
@@ -292,6 +300,10 @@ Every entry shows its source address and cycle year. Anything not confirmed on a
 **Updating each cycle:** open **Colleges and prompts** at the bottom of the sidebar. You can add a school, add or edit prompts, change limits, source addresses and cycle years, and tick "Verified" once you have checked the official page. Your edits are kept even when a newer starter set is installed. Prompts and deadlines change every year: check the school's own site before you submit.
 
 To rebuild the starter set from the research files: `node app/scripts/build-seed.mjs`.
+
+### Almost every US college by name
+
+The college box is a search field over 1,963 four-year US colleges from the federal IPEDS directory (2023): name, city, state and official website. Only the 17 researched schools have prompts stored. For every other school Scribe says so plainly and links the school's own site; you paste this year's prompt yourself. Scribe never invents a prompt or what a school "wants".
 
 ## Safety rules the app enforces
 

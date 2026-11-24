@@ -57,7 +57,8 @@ test('a spoken conversation: fast to answer, stops when interrupted, never write
     await page.keyboard.insertText(para);
     await page.waitForTimeout(650);
   }
-  await page.getByLabel('College').selectOption('commonapp');
+  await page.getByLabel('College').fill('Common App');
+  await page.locator('[role="option"][data-college-id="commonapp"]').click();
   await page.getByLabel('Prompt').selectOption('commonapp-2');
   await page.waitForTimeout(500);
   const before = await stored(page);

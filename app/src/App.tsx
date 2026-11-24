@@ -9,6 +9,7 @@ import { CounselorPanel } from './features/CounselorPanel';
 import { useCounselor } from './llm/counselor';
 import { CollegesAdmin } from './features/CollegesAdmin';
 import { useColleges } from './colleges/store';
+import { isIpedsId } from './colleges/usColleges';
 import { useSettings } from './settings';
 import { startStandby } from './dictation/session';
 import { unlockAudio } from './voice/earcons';
@@ -18,6 +19,7 @@ import { MemoryScreen } from './features/MemoryScreen';
 import { useMemory } from './memory/store';
 import { ConfirmDialog } from './features/ConfirmDialog';
 import { ToastBar } from './features/ToastBar';
+import { UpdateBanner } from './features/UpdateBanner';
 import { SignIn } from './features/SignIn';
 import { useUi } from './features/ui';
 import { platform } from './platform';
@@ -29,6 +31,9 @@ export function App() {
   const historyOpen = useStore((s) => s.historyOpen);
   const counselorOpen = useCounselor((s) => s.open);
   const adminOpen = useColleges((s) => s.adminOpen);
+  const collegesReady = useColleges((s) => s.ready);
+  // Schools from the big US list that essays point at. Essays sync between devices; the college rows do not.
+  const usCollegeIds = useStore((s) => [...new Set(s.essays.map((e) => e.collegeId).filter(isIpedsId))].sort().join(','));
   const memoryOpen = useMemory((s) => s.screenOpen);
   const settingsOpen = useSettings((s) => s.screenOpen);
 
@@ -46,6 +51,10 @@ export function App() {
     })();
     startCoach();
   }, []);
+
+  useEffect(() => {
+    if (collegesReady && usCollegeIds) void useColleges.getState().resolveMissing(usCollegeIds.split(',')).catch(() => {});
+  }, [collegesReady, usCollegeIds]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -118,6 +127,7 @@ export function App() {
       )}
       <ConfirmDialog />
       <ToastBar />
+      <UpdateBanner />
     </div>
   );
 }

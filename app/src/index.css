@@ -3,13 +3,20 @@
 @theme {
   --font-sans: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --font-serif: "Iowan Old Style", "Palatino", Georgia, serif;
-  --color-paper: #fbfaf7;
-  --color-ink: #23211d;
-  --color-muted: #77736a;
-  --color-line: #e4e0d6;
-  --color-panel: #f3f0e8;
-  --color-accent: #2f5d50;
-  --color-danger: #a33a2c;
+  /* Dark, near-black and quiet. One accent; everything else is greys. */
+  --color-paper: #0a0a0b; /* the page */
+  --color-panel: #101012; /* side panels */
+  --color-surface: #17171a; /* cards, fields, menus */
+  --color-raised: #1f1f23; /* hover, pressed */
+  --color-line: #26262b;
+  --color-ink: #ededf0;
+  --color-muted: #8b8b94;
+  --color-accent: #6fcfa8;
+  --color-accent-soft: #12261f; /* a selected pill, your own quoted words */
+  --color-on-accent: #06140e; /* text on an accent or danger fill */
+  --color-danger: #f0715c;
+  --color-warn: #e0b84a;
+  --color-warn-soft: #2a230e;
 }
 
 html,
@@ -43,10 +50,42 @@ body,
   }
 }
 
+html {
+  color-scheme: dark;
+}
+
 body {
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+/* Thin, quiet scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
+input,
+select,
+textarea {
+  color: var(--color-ink);
+}
+
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'] {
+  accent-color: var(--color-accent);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: color-mix(in srgb, var(--color-muted) 70%, transparent);
 }
 
 [contenteditable]:focus {
@@ -61,14 +100,14 @@ body {
 
 /* A word Scribe was not sure about: spoken command or part of the sentence. */
 .flag {
-  background: #f6ecc9;
-  border-bottom: 1px dashed #a8862a;
+  background: var(--color-warn-soft);
+  border-bottom: 1px dashed var(--color-warn);
   border-radius: 2px;
   cursor: pointer;
 }
 
 .flag:hover {
-  background: #efdf9f;
+  background: color-mix(in srgb, var(--color-warn) 30%, var(--color-warn-soft));
 }
 
 /* The formatted copy of the essay that is sent to the printer (and so to PDF). */
@@ -85,8 +124,13 @@ body {
     display: block;
   }
 
+  html {
+    color-scheme: light;
+  }
+
   body {
     background: #fff;
+    color: #000;
   }
 }
 

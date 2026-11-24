@@ -25,7 +25,7 @@ export function ConfirmDialog() {
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-title"
-        className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl"
+        className="w-full max-w-lg rounded-lg bg-surface p-6 shadow-xl"
       >
         <h2 id="confirm-title" className="text-lg font-semibold">
           {request.title}
@@ -47,7 +47,7 @@ export function ConfirmDialog() {
           <button ref={cancelRef} onClick={() => close(false)} className="rounded-md border border-line px-3 py-1.5">
             Cancel
           </button>
-          <button onClick={() => close(true)} className="rounded-md bg-danger px-3 py-1.5 font-medium text-white">
+          <button onClick={() => close(true)} className="rounded-md bg-danger px-3 py-1.5 font-medium text-on-accent">
             {request.confirmLabel}
           </button>
         </div>

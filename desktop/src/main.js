@@ -1,5 +1,7 @@
 // Scribe's Mac shell. It shows the same web bundle as the browser version and
-// gives it local Whisper through the preload bridge. It never goes online.
+// gives it local Whisper through the preload bridge. The page never goes online.
+// The one thing that does is the updater (updater.js), from this process only:
+// it asks GitHub whether a newer Scribe exists and downloads it when asked to.
 const { app, BrowserWindow, ipcMain, session, systemPreferences } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -22,6 +24,8 @@ const PHONE_PORT = Number(process.env.SCRIBE_PORT || 4310);
 let remote = null;
 let phoneServer = null;
 let win = null;
+const { Updater } = require('./updater');
+const updater = new Updater();
 
 function indexFile() {
   const packaged = path.join(__dirname, '..', 'web', 'index.html');
@@ -35,6 +39,8 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'Scribe',
+    // The same near-black as the page, so the window never flashes white while it loads.
+    backgroundColor: '#0a0a0b',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -101,6 +107,19 @@ app.whenReady().then(() => {
     remote.disable(email);
     return remote.status(email);
   });
+  // App updates. The page only sees the state and three buttons; the requests are made here.
+  updater.onState = (state) => {
+    if (win && !win.isDestroyed()) win.webContents.send('updater:state', state);
+  };
+  updater.beforeRelaunch = stopServices;
+  ipcMain.handle('updater:state', () => updater.state);
+  ipcMain.handle('updater:info', () => updater.info());
+  ipcMain.handle('updater:check', () => void updater.check(true));
+  ipcMain.handle('updater:download', () => void updater.download());
+  ipcMain.handle('updater:install', () => void updater.installAndRelaunch());
+  ipcMain.handle('updater:setAuto', (_e, on) => updater.setAuto(on === true));
+  updater.start();
+
   listen(createHandler({ dist: path.dirname(indexFile()), whisper, tts, ollama, remote }), PHONE_PORT).then(
     (server) => { phoneServer = server; },
     // The port is taken when Scribe is also running in the browser; that copy serves the phone instead.
@@ -114,8 +133,10 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => app.quit());
-app.on('will-quit', () => {
+function stopServices() {
   phoneServer?.close();
   whisper.stop();
   tts.stop();
-});
+}
+app.on('before-quit', () => updater.installStagedOnQuit());
+app.on('will-quit', stopServices);

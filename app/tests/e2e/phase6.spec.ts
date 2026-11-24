@@ -20,7 +20,8 @@ const adminRow = (page: Page, name: string) => page.getByTestId('college-row').f
 
 test('an essay is tied to a college and prompt, which sets its prompt, limit and title', async ({ page }) => {
   const asked = await start(page);
-  await page.getByLabel('College').selectOption({ label: 'UC Berkeley' }).catch(() => page.getByLabel('College').selectOption('uc-berkeley'));
+  await page.getByLabel('College').fill('UC Berkeley');
+  await page.locator('[role="option"][data-college-id="uc-berkeley"]').click();
   await expect(page.getByLabel('Prompt').locator('option')).toHaveCount(9); // 8 questions + "Choose a prompt"
   await page.getByLabel('Prompt').selectOption('uc-piq-5');
 
@@ -43,17 +44,20 @@ test('an essay is tied to a college and prompt, which sets its prompt, limit and
 
   await page.waitForTimeout(400);
   await page.reload();
-  await expect(page.getByLabel('College')).toHaveValue('uc-berkeley');
+  await expect(page.getByLabel('College')).toHaveValue('UC Berkeley');
+  await expect(page.getByLabel('College')).toHaveAttribute('data-college-id', 'uc-berkeley');
   await expect(page.getByLabel('Prompt')).toHaveValue('uc-piq-5');
 });
 
 test('schools that could not be confirmed are visibly unverified and nothing is invented for them', async ({ page }) => {
   await start(page);
-  await page.getByLabel('College').selectOption('uiuc');
+  await page.getByLabel('College').fill('University of Illinois');
+  await page.locator('[role="option"][data-college-id="uiuc"]').click();
   await expect(page.getByTestId('unverified-badge')).toBeVisible();
   await expect(page.getByLabel('Prompt').locator('option')).toHaveText(['No prompts stored']);
 
-  await page.getByLabel('College').selectOption('penn');
+  await page.getByLabel('College').fill('University of Pennsylvania');
+  await page.locator('[role="option"][data-college-id="penn"]').click();
   await expect(page.getByTestId('unverified-badge')).toHaveCount(0);
 
   await openAdmin(page);
@@ -93,7 +97,8 @@ test('admin: add a school and a prompt, edit them, and keep them across reloads'
 
   // It can be chosen for an essay straight away.
   await page.getByRole('button', { name: 'Back to essays' }).click();
-  await page.getByLabel('College').selectOption({ label: 'Harvey Mudd College' });
+  await page.getByLabel('College').fill('Harvey Mudd');
+  await page.getByRole('option', { name: /Harvey Mudd College/ }).click();
   await expect(page.getByLabel('Prompt').locator('option')).toContainText(['Choose a prompt', 'Why Mudd (500 words)']);
 });
 

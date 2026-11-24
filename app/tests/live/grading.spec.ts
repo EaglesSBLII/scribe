@@ -43,7 +43,8 @@ test('grading the same essay three times gives identical scores', async ({ page 
     await page.waitForTimeout(700);
   }
   await expect(page.getByTestId('word-count')).toHaveText('141 words');
-  await page.getByLabel('College').selectOption('commonapp');
+  await page.getByLabel('College').fill('Common App');
+  await page.locator('[role="option"][data-college-id="commonapp"]').click();
   await page.getByLabel('Prompt').selectOption('commonapp-2');
   await page.getByRole('list', { name: 'Essay stage' }).getByRole('button', { name: '3. Refine' }).click();
   await page.getByText('Grade', { exact: true }).click();

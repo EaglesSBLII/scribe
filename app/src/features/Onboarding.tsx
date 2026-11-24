@@ -37,14 +37,14 @@ export function Onboarding() {
             setError('');
           }}
           placeholder="you@example.com"
-          className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2"
+          className="mt-2 w-full rounded-md border border-line bg-surface px-3 py-2"
         />
         {error && (
           <p role="alert" className="mt-2 text-sm text-danger">
             {error}
           </p>
         )}
-        <button type="submit" className="mt-4 w-full rounded-md bg-accent px-3 py-2 font-medium text-white">
+        <button type="submit" className="mt-4 w-full rounded-md bg-accent px-3 py-2 font-medium text-on-accent">
           Create account
         </button>
         <p className="mt-4 text-sm text-muted">

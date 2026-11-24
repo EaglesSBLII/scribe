@@ -13,7 +13,7 @@ export function History() {
     <aside aria-label="Version history" className="fixed inset-0 z-30 flex flex-col bg-panel md:static md:w-80 md:shrink-0 md:border-l md:border-line">
       <div className="flex items-center justify-between px-4 py-4">
         <h2 className="font-semibold">Version history</h2>
-        <button aria-label="Close version history" onClick={() => void store.openHistory(false)} className="rounded p-1 text-muted hover:bg-white">
+        <button aria-label="Close version history" onClick={() => void store.openHistory(false)} className="rounded p-1 text-muted hover:bg-raised">
           <X size={16} />
         </button>
       </div>
@@ -25,7 +25,7 @@ export function History() {
           </li>
         )}
         {versions.map((v) => (
-          <li key={v.id} data-testid="version" className="rounded-md bg-white p-3 text-sm shadow-sm">
+          <li key={v.id} data-testid="version" className="rounded-md bg-surface p-3 text-sm shadow-sm">
             <button className="block w-full text-left" aria-expanded={openId === v.id} onClick={() => setOpenId(openId === v.id ? null : v.id!)}>
               <span className="block font-medium">{dateTime(v.ts)}</span>
               <span className="block text-xs text-muted">

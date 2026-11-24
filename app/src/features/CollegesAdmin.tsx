@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { CURRENT_CYCLE, promptsFor, useColleges } from '../colleges/store';
+import { isIpedsId, withoutLocal } from '../colleges/usColleges';
 import type { CollegeRow, PrincipleRow, PromptRow, RubricRow } from '../db/schema';
 import { DEFAULT_WEIGHTS, SECTIONS } from '../grading/rubric';
 
-const inputClass = 'w-full rounded border border-line bg-white px-2 py-1 text-sm';
+const inputClass = 'w-full rounded border border-line bg-surface px-2 py-1 text-sm';
 
 /** A field that saves when you leave it, like everything else in Scribe. */
 function Field(props: {
@@ -39,7 +40,7 @@ function Verified(props: { label: string; checked: boolean; onChange: (v: boolea
     <label className="flex items-center gap-1.5 text-xs">
       <input type="checkbox" aria-label={props.label} checked={props.checked} onChange={(e) => props.onChange(e.target.checked)} />
       Verified on the official page for this cycle
-      {!props.checked && <span className="rounded bg-[#f6ecc9] px-1.5 py-0.5 font-medium text-[#6b5310]">unverified</span>}
+      {!props.checked && <span className="rounded bg-warn-soft px-1.5 py-0.5 font-medium text-warn">unverified</span>}
     </label>
   );
 }
@@ -59,7 +60,7 @@ function PromptCard({ prompt }: { prompt: PromptRow }) {
     void s.savePrompt({ ...(s.prompts.find((p) => p.id === prompt.id) ?? prompt), ...patch });
   };
   return (
-    <li data-testid="prompt-card" className="space-y-2 rounded-md border border-line bg-white p-3">
+    <li data-testid="prompt-card" className="space-y-2 rounded-md border border-line bg-surface p-3">
       <div className="flex items-end gap-2">
         <Field label="Label" value={prompt.label} onSave={(label) => save({ label })} className="flex-1" />
         <Field label="Min words" type="number" value={prompt.minWords?.toString() ?? ''} onSave={(v) => save({ minWords: number(v) })} className="w-24" />
@@ -97,7 +98,7 @@ function RubricCard({ rubric }: { rubric: RubricRow }) {
       return at < 0 ? { name: l, description: '' } : { name: l.slice(0, at).trim(), description: l.slice(at + 1).trim() };
     });
   return (
-    <li className="space-y-2 rounded-md border border-line bg-white p-3">
+    <li className="space-y-2 rounded-md border border-line bg-surface p-3">
       <div className="flex items-end gap-2">
         <Field label="Criteria title" value={rubric.title} onSave={(title) => save({ title })} className="flex-1" />
         <button
@@ -198,7 +199,7 @@ function CollegeDetail({ college }: { college: CollegeRow }) {
                 wordLimit: null, instructions: '', sourceUrl: '', cycleYear: college.cycleYear || CURRENT_CYCLE, verified: false,
               })
             }
-            className="flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-sm font-medium text-white"
+            className="flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-sm font-medium text-on-accent"
           >
             <Plus size={14} /> Add prompt
           </button>
@@ -226,7 +227,7 @@ function CollegeDetail({ college }: { college: CollegeRow }) {
                 sourceUrl: '', cycleYear: college.cycleYear || CURRENT_CYCLE, verified: false,
               })
             }
-            className="flex items-center gap-1 rounded-md border border-line bg-white px-2 py-1 text-sm"
+            className="flex items-center gap-1 rounded-md border border-line bg-surface px-2 py-1 text-sm"
           >
             <Plus size={14} /> Add criteria
           </button>
@@ -258,14 +259,14 @@ function Principles() {
         </div>
         <button
           onClick={() => void api.savePrinciple({ id: `p-${crypto.randomUUID().slice(0, 8)}`, text: '', sourceName: '', sourceUrl: '', verified: false })}
-          className="flex shrink-0 items-center gap-1 rounded-md bg-accent px-2 py-1 text-sm font-medium text-white"
+          className="flex shrink-0 items-center gap-1 rounded-md bg-accent px-2 py-1 text-sm font-medium text-on-accent"
         >
           <Plus size={14} /> Add principle
         </button>
       </div>
       <ul className="space-y-3">
         {principles.map((p) => (
-          <li key={p.id} data-testid="principle" className="space-y-2 rounded-md border border-line bg-white p-3">
+          <li key={p.id} data-testid="principle" className="space-y-2 rounded-md border border-line bg-surface p-3">
             <Field label="Principle" rows={2} value={p.text} onSave={(text) => save(p, { text })} />
             <div className="flex items-end gap-2">
               <Field label="Source" value={p.sourceName} onSave={(sourceName) => save(p, { sourceName })} className="w-48" />
@@ -289,11 +290,23 @@ function Principles() {
 
 /** Add schools, and update prompts each cycle. Everything here is stored on this Mac. */
 export function CollegesAdmin() {
-  const colleges = useColleges((s) => s.colleges);
+  const allColleges = useColleges((s) => s.colleges);
   const prompts = useColleges((s) => s.prompts);
+  const us = useColleges((s) => s.us);
+  const usedIds = useStore((s) => s.essays.map((e) => e.collegeId ?? '').join('|'));
   const [selected, setSelected] = useState<string>('');
   const api = useColleges.getState();
+  // A school picked from the big US list is only listed here once it is edited, has prompts, or an essay uses it.
+  const colleges = useMemo(() => {
+    const used = new Set(usedIds.split('|'));
+    return allColleges.filter((c) => !isIpedsId(c.id) || c.edited || used.has(c.id) || c.id === selected || prompts.some((p) => p.collegeId === c.id));
+  }, [allColleges, prompts, usedIds, selected]);
   const college = colleges.find((c) => c.id === selected);
+  const moreUs = useMemo(() => (us ? withoutLocal(us, colleges).length : 0), [us, colleges]);
+
+  useEffect(() => {
+    void useColleges.getState().loadUs().catch(() => {});
+  }, []);
 
   async function addCollege() {
     const id = `college-${crypto.randomUUID().slice(0, 8)}`;
@@ -308,13 +321,13 @@ export function CollegesAdmin() {
           <button onClick={() => api.setAdminOpen(false)} className="flex items-center gap-1 text-sm text-accent">
             <ArrowLeft size={14} /> Back to essays
           </button>
-          <button onClick={() => void addCollege()} className="flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-sm font-medium text-white">
+          <button onClick={() => void addCollege()} className="flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-sm font-medium text-on-accent">
             <Plus size={14} /> Add college
           </button>
         </div>
         <ul className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
           <li>
-            <button onClick={() => setSelected('')} aria-current={!college ? 'page' : undefined} className={`w-full rounded-md px-3 py-2 text-left text-sm ${!college ? 'bg-white shadow-sm' : 'hover:bg-white/60'}`}>
+            <button onClick={() => setSelected('')} aria-current={!college ? 'page' : undefined} className={`w-full rounded-md px-3 py-2 text-left text-sm ${!college ? 'bg-surface shadow-sm' : 'hover:bg-raised'}`}>
               What great essays do
             </button>
           </li>
@@ -327,18 +340,23 @@ export function CollegesAdmin() {
                   data-testid="college-row"
                   onClick={() => setSelected(c.id)}
                   aria-current={c.id === selected ? 'page' : undefined}
-                  className={`w-full rounded-md px-3 py-2 text-left ${c.id === selected ? 'bg-white shadow-sm' : 'hover:bg-white/60'}`}
+                  className={`w-full rounded-md px-3 py-2 text-left ${c.id === selected ? 'bg-surface shadow-sm' : 'hover:bg-raised'}`}
                 >
                   <span className="block truncate text-sm font-medium">{c.name}</span>
                   <span className="block text-xs text-muted">
                     {c.cycleYear} · {count} {count === 1 ? 'prompt' : 'prompts'}
-                    {anyUnverified && <span className="ml-1 rounded bg-[#f6ecc9] px-1 text-[#6b5310]">unverified</span>}
+                    {anyUnverified && <span className="ml-1 rounded bg-warn-soft px-1 text-warn">unverified</span>}
                   </span>
                 </button>
               </li>
             );
           })}
         </ul>
+        {moreUs > 0 && (
+          <p data-testid="us-colleges-count" className="border-t border-line px-4 py-2 text-xs text-muted">
+            {moreUs.toLocaleString()} more US colleges can be chosen by name when you set an essay's college. Their prompts are not stored: you paste your own.
+          </p>
+        )}
       </nav>
       <main className="min-w-0 flex-1 overflow-y-auto">{college ? <CollegeDetail college={college} /> : <Principles />}</main>
     </div>

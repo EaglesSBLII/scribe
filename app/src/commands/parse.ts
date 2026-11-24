@@ -56,9 +56,9 @@ const ORD = `\\d+(?:st|nd|rd|th)|last|final|${Object.keys(ORDINAL_WORDS).join('|
 
 /** "paragraph 3", "the third paragraph", "this paragraph". */
 const para = (tag: string) =>
-  `(?:paragraph (?<${tag}n>${NUM})|(?:the )?(?<${tag}o>${ORD}) paragraph|(?<${tag}c>this|the current) paragraph)`;
+  `(?:paragraph (?<${tag}n>${NUM})|(?:the |that |my )?(?<${tag}o>${ORD}) paragraph|(?<${tag}c>this|the current) paragraph)`;
 /** "sentence 2", "the last sentence". */
-const sent = (tag: string) => `(?:sentence (?<${tag}n>${NUM})|(?:the )?(?<${tag}o>${ORD}) sentence)`;
+const sent = (tag: string) => `(?:sentence (?<${tag}n>${NUM})|(?:the |that |my )?(?<${tag}o>${ORD}) sentence)`;
 const inPara = (tag: string) => `(?: (?:in|of|from) ${para(tag)})?`;
 
 function num(word: string): number {
@@ -102,13 +102,45 @@ interface Rule {
 const rule = (pattern: string, build: Rule['build']): Rule => ({ re: new RegExp(`^(?:${pattern})$`, 'd'), build });
 const VERB_INSERT = '(?:insert|add|put)';
 
-const RULES: Rule[] = [
-  rule('undo(?: that)?', () => ({ k: 'undo' })),
+/**
+ * Looser ways of saying things. These apply only to words said to Scribe by
+ * name, or in conversation mode, where nothing said can end up in the essay.
+ * On their own, while dictating, "forget it" or "my bad" may be the essay.
+ */
+const CASUAL_RULES: Rule[] = [
   rule(
-    "scratch that|(?:delete|remove|erase|scratch) (?:what|everything) (?:i|i've) just said|(?:delete|remove|erase) (?:that|what i said|the last thing i said|my last sentence)",
+    "forget (?:that|it|about (?:that|it))|not that|oops|whoops|my bad|my mistake|(?:i )?didn't mean (?:that|it|to say that)|that's not what i meant|that (?:was|is|came out) wrong|no not that",
     () => ({ k: 'deleteUtterance' }),
   ),
-  rule(`(?:delete|remove|erase) (?:the |my )?last (?:(?<wn>${NUM}) )?words?`, (g) => ({ k: 'deleteWords', count: g.wn ? num(g.wn) : 1 })),
+  // "ando" and "undue" are how Whisper sometimes writes "undo".
+  rule('(?:go|step) back(?: one)?(?: step)?|back up|(?:ando|undue|on do|and do)(?: (?:ando|that|it))?', () => ({ k: 'undo' })),
+  rule('do (?:that|it) again|put (?:that|it) back in', () => ({ k: 'redo' })),
+  rule(
+    "am i over(?: the limit| the word limit)?|how much (?:room|space)(?: do i have| is)? left|how many more(?: words)?(?: can i (?:write|add)| do i (?:get|have))?|how close am i(?: to the limit)?",
+    () => ({ k: 'count', scope: 'left' }),
+  ),
+  rule(
+    "how long is (?:it|this|that|my essay|the essay)(?: so far| now)?|(?:what|where) am i at|what's my count|how many(?: words)? (?:is that|so far)|count(?: the| my)? words",
+    () => ({ k: 'count', scope: 'essay' }),
+  ),
+  rule("what did i(?: just)? say|what was that(?: last (?:bit|part|line|sentence))?|(?:read|say) that again", () => ({ k: 'read', what: 'sentence', sent: 'last' })),
+  rule("what do i have(?: so far)?|what have i got(?: so far)?|read it from the top|from the top", () => ({ k: 'read', what: 'essay' })),
+  rule("be quiet|quiet down|quiet|hush|shh+|stop talking|shut up|let me write|just listen", () => ({ k: 'mode', mode: 'draft' })),
+  rule("let's talk|talk to me|talk with me|let's chat|can we talk|let's brainstorm", () => ({ k: 'mode', mode: 'conversation' })),
+  rule('coach me|help me as i go|chime in', () => ({ k: 'mode', mode: 'coach' })),
+  rule('keep going|carry on|continue|go to the bottom|back to writing', () => ({ k: 'gotoEnd' })),
+];
+
+const RULES: Rule[] = [
+  rule('(?:oops )?(?:undo|undelete|revert|reverse|restore)(?: (?:that|it|this))?|(?:put|bring) (?:that|it) back', () => ({ k: 'undo' })),
+  rule(
+    "(?:no )?(?:delete|remove|erase) (?:that|it|this|(?:that|the) last (?:bit|part|thing|one)|(?:what|everything) (?:i|i've) (?:just )?said|the last thing i said)|take (?:that|it) (?:back|out)",
+    () => ({ k: 'deleteUtterance' }),
+  ),
+  rule(
+    `(?:delete|remove|erase|back up) (?:the |my |those |that )?last (?:(?<wn>${NUM}) |(?<wc>couple|couple of|few) )?words?|back up (?<wb>${NUM}) words?`,
+    (g) => ({ k: 'deleteWords', count: g.wn ? num(g.wn) : g.wb ? num(g.wb) : g.wc ? (g.wc === 'few' ? 3 : 2) : 1 }),
+  ),
   rule(
     '(?:go|jump|move)(?: back)? to (?:the |my )?(?:sentence|part|line|bit|place|paragraph) (?:about|where|with|on|that mentions) (?<about>.+)|find (?:the |my )?(?:sentence|part|line) (?:about|where|with) (?<about2>.+)',
     (_g, slice) => {
@@ -116,7 +148,7 @@ const RULES: Rule[] = [
       return about ? { k: 'goto', about } : null;
     },
   ),
-  rule('(?:go|jump|move)(?: back)? to the end|continue (?:at|from) the end|back to the end', () => ({ k: 'gotoEnd' })),
+  rule('(?:go|jump|move)(?: back)? to the (?:end|bottom)|continue (?:at|from) the end|back to the (?:end|bottom)|pick up where i left off', () => ({ k: 'gotoEnd' })),
   rule('(?:switch to |go to |use )?(?<mode>draft|coach|coaching|conversation|quiet) mode', (g) => ({
     k: 'mode',
     mode: g.mode === 'coach' || g.mode === 'coaching' ? 'coach' : g.mode === 'conversation' ? 'conversation' : 'draft',
@@ -137,7 +169,7 @@ const RULES: Rule[] = [
   ),
 
   rule(
-    `read(?: me)?(?: back)? (?:(?<all>everything|it all|it|the (?:whole |entire )?essay|my essay)|${sent('s')}${inPara('sp')}|${para('p')})(?: back)?`,
+    `(?:read|play|say)(?: me)?(?: back)? (?:(?<all>everything|it all|it|that|the whole thing|what i have(?: so far)?|the (?:whole |entire )?essay|my essay)(?: from the top)?|${sent('s')}${inPara('sp')}|${para('p')})(?: back)?`,
     (g) => {
       if (g.all) return { k: 'read', what: 'essay' };
       const s = sentRef(g, 's');
@@ -216,15 +248,74 @@ function tokens(input: HeardWord[] | string): Tok[] {
   return out;
 }
 
-export function parseCommand(input: HeardWord[] | string): Command | null {
-  let toks = tokens(input);
-  // Politeness is allowed and ignored.
-  if (toks[0]?.key === 'please') toks = toks.slice(1);
-  if (toks.at(-1)?.key === 'please') toks = toks.slice(0, -1);
+// Words people put in front of or after a request. They are ignored.
+const LEAD = [
+  'no wait', 'oh wait', 'all right', 'go ahead and', 'can you just', 'could you just', 'can you', 'could you', 'would you', 'will you',
+  'i want you to', 'i need you to', "i'd like you to", 'okay', 'ok', 'alright', 'so', 'um', 'uh', 'well', 'hey', 'yo', 'oh',
+  'actually', 'wait', 'now', 'and', 'then', 'just', 'please', 'kindly', 'yeah', 'yes',
+].map((p) => p.split(' '));
+const TRAIL = ['for me', 'real quick', 'right now', 'thank you', 'thanks', 'please', 'now', 'okay', 'ok', 'will you', 'would you'].map((p) => p.split(' '));
+
+// Other ways to say "delete", as the first word of a request.
+const DELETE_PHRASES = [['get', 'rid', 'of'], ['take', 'out'], ['cut', 'out'], ['take', 'away'], ['throw', 'out'], ['throw', 'away'], ['cross', 'out'], ['wipe', 'out']];
+const DELETE_WORDS = new Set([
+  'scratch', 'strike', 'scrap', 'nix', 'kill', 'nuke', 'ditch', 'trash', 'axe', 'ax', 'zap', 'wipe', 'lose', 'drop', 'toss', 'chop', 'dump', 'yeet', 'cut', 'clear', 'bin',
+  // Whisper sometimes hears the past tense.
+  'deleted', 'removed', 'erased', 'scratched', 'nuked', 'killed', 'scrapped', 'ditched', 'dropped',
+]);
+
+const startsWith = (toks: Tok[], phrase: string[], at = 0) => phrase.every((w, i) => toks[at + i]?.key === w);
+
+/** Strip filler around a request and bring slang for "delete" back to the one word the grammar knows. */
+function simplify(input: Tok[]): Tok[] {
+  let toks = input;
+  for (let again = true; again && toks.length > 1; ) {
+    again = false;
+    for (const phrase of LEAD) {
+      if (toks.length > phrase.length && startsWith(toks, phrase)) {
+        toks = toks.slice(phrase.length);
+        again = true;
+        break;
+      }
+    }
+  }
+  for (let again = true; again && toks.length > 1; ) {
+    again = false;
+    for (const phrase of TRAIL) {
+      const at = toks.length - phrase.length;
+      if (at > 0 && startsWith(toks, phrase, at)) {
+        toks = toks.slice(0, at);
+        again = true;
+        break;
+      }
+    }
+  }
+  if (toks.length > 1) {
+    const phrase = DELETE_PHRASES.find((p) => toks.length > p.length && startsWith(toks, p));
+    if (phrase) toks = [{ ...toks[0], key: 'delete' }, ...toks.slice(phrase.length)];
+    else if (DELETE_WORDS.has(toks[0].key)) toks = [{ ...toks[0], key: 'delete' }, ...toks.slice(1)];
+    // "take the last sentence out", "take that out"
+    else if (toks[0].key === 'take' && toks.at(-1)?.key === 'out' && toks.length > 3) toks = [{ ...toks[0], key: 'delete' }, ...toks.slice(1, -1)];
+  }
+  // "the last line" is the last sentence; "para" is short for paragraph.
+  return toks.map((t, i) => {
+    if (t.key === 'para') return { ...t, key: 'paragraph' };
+    if (t.key === 'line' && i > 0 && /^(last|final|first|second|third|fourth|fifth|that|this)$/.test(toks[i - 1].key)) return { ...t, key: 'sentence' };
+    return t;
+  });
+}
+
+export interface ParseOptions {
+  /** Said to Scribe by name (or in conversation mode): looser phrasings count too. */
+  addressed?: boolean;
+}
+
+export function parseCommand(input: HeardWord[] | string, options: ParseOptions = {}): Command | null {
+  const toks = simplify(tokens(input));
   if (!toks.length || toks.length > 80) return null;
   const text = toks.map((t) => t.key).join(' ');
 
-  for (const r of RULES) {
+  for (const r of options.addressed ? [...RULES, ...CASUAL_RULES] : RULES) {
     const m = r.re.exec(text);
     if (!m) continue;
     // Map a matched group back to the original words it covers.
@@ -239,4 +330,18 @@ export function parseCommand(input: HeardWord[] | string): Command | null {
     if (command) return command;
   }
   return null;
+}
+
+// Words that open a request to change the essay, including the casual ones above.
+const EDIT_WORDS = /^(delete|remove|erase|scratch|cut|insert|add|put|move|replace|change|swap|shift|undo|redo|take|strike|scrap|nix|kill|nuke|ditch|trash|axe?|zap|wipe|lose|drop|toss|chop|dump|yeet|clear|bin|throw|cross|revert|reverse|restore|undelete|bring|forget|oops|whoops|back)$/;
+
+/**
+ * Could this request change the essay? Such requests are always heard with the
+ * exact transcriber. Polite or filler words in front are skipped ("okay, can
+ * you just delete ..."); a question that merely contains such a word ("should
+ * I cut the line about the notebook?") is not one.
+ */
+export function mayChangeEssay(heard: HeardWord[]): boolean {
+  const first = simplify(tokens(heard))[0];
+  return !!first && EDIT_WORDS.test(first.key);
 }

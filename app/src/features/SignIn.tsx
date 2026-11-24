@@ -24,7 +24,7 @@ export function SignIn(props: { onSignedIn(email: string): void | Promise<void> 
     }
   }
 
-  const field = 'mt-2 w-full rounded-md border border-line bg-white px-3 py-2';
+  const field = 'mt-2 w-full rounded-md border border-line bg-surface px-3 py-2';
   return (
     <main className="flex h-full items-center justify-center p-6">
       <form onSubmit={submit} noValidate className="w-full max-w-sm">
@@ -44,7 +44,7 @@ export function SignIn(props: { onSignedIn(email: string): void | Promise<void> 
             {error}
           </p>
         )}
-        <button type="submit" disabled={busy} className="mt-4 w-full rounded-md bg-accent px-3 py-2 font-medium text-white disabled:opacity-60">
+        <button type="submit" disabled={busy} className="mt-4 w-full rounded-md bg-accent px-3 py-2 font-medium text-on-accent disabled:opacity-60">
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
         <p className="mt-4 text-sm text-muted">The password is the one you set on the Mac, in Settings, under “Phone access”.</p>

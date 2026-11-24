@@ -45,7 +45,8 @@ async function start(page: Page, runs: Run[], opts: { prompt?: boolean; text?: s
     await page.keyboard.type(t);
   }
   if (opts.prompt !== false) {
-    await page.getByLabel('College').selectOption('commonapp');
+    await page.getByLabel('College').fill('Common App');
+    await page.locator('[role="option"][data-college-id="commonapp"]').click();
     await page.getByLabel('Prompt').selectOption('commonapp-2');
   }
   await page.getByRole('list', { name: 'Essay stage' }).getByRole('button', { name: '3. Refine' }).click();

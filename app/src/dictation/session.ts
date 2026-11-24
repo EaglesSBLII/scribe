@@ -12,14 +12,13 @@ import { create } from 'zustand';
 import { Chunker, encodeWav, SAMPLE_RATE } from './chunker';
 import { makeResampler } from './resample';
 import { clean, type HeardWord } from './clean';
-import { platform, Unreachable } from '../platform';
+import { macUnreachable, platform, Unreachable } from '../platform';
 import { hasQueuedAudio, queueAudio } from '../sync/queue';
-import { useSync } from '../sync';
 import { useStore } from '../store';
 import { useSettings } from '../settings';
 import { isOwnVoice, playbackAge, quietSince, speak, stopSpeaking, useSpeech } from '../speech';
 import { beginTurn, mark, recordBargeIn } from '../voice/metrics';
-import { parseCommand } from '../commands/parse';
+import { mayChangeEssay as changesEssay, parseCommand } from '../commands/parse';
 import { isSleepRequest, readWake } from '../voice/wake';
 import { playEarcon, unlockAudio } from '../voice/earcons';
 import { askCounselor, interrupt, setVoiceOn } from '../voice/bus';
@@ -74,10 +73,6 @@ let awaitTimer: ReturnType<typeof setTimeout> | undefined;
 let early: { length: number; result: Promise<{ text: string; words: HeardWord[] } | null> } | null = null; // always from the quick transcriber
 
 type Heard = { text: string; words: HeardWord[] };
-
-/** Requests that change the essay: these are always heard with the exact transcriber. */
-const EDITS = /^(delete|remove|erase|scratch|cut|insert|add|put|move|replace|change|swap|shift|undo|redo)$/;
-const changesEssay = (rest: HeardWord[]) => EDITS.test((rest[0]?.text ?? '').toLowerCase().replace(/[^a-z]/g, ''));
 
 /** What is said right now is for Scribe (the wake word, an answer, the counselor), not for the essay. */
 function saidToScribe(): boolean {
@@ -210,7 +205,7 @@ async function heardWhileDictating(words: HeardWord[], paused: boolean) {
   if (!wake.wake && useSettings.getState().counselorMode === 'conversation') {
     // Conversation mode: what is said goes to the counselor, not into the essay.
     // Plain commands ("word count", "undo") still work without the name.
-    const cmd = parseCommand(words);
+    const cmd = parseCommand(words, { addressed: true });
     if (cmd) return void useStore.getState().handleCommand(cmd);
     const said = clean(words).text.replace(/\s+/g, ' ').trim();
     if (said) askCounselor(said);
@@ -231,7 +226,7 @@ async function openMic(): Promise<boolean> {
   unlockAudio();
   if (!(await platform.asrAvailable())) {
     // Out of reach of the Mac (a phone away from home): recording still works, and is transcribed later.
-    const offline = platform.kind === 'web' && (!navigator.onLine || !useSync.getState().online);
+    const offline = platform.kind === 'web' && macUnreachable();
     if (!offline) {
       fail('The speech engine is not running. Start Scribe with ./setup.sh or npm start.');
       return false;

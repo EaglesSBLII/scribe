@@ -1,6 +1,7 @@
 /** The local, editable college database. */
 import { create } from 'zustand';
 import { db, type CollegeRow, type PrincipleRow, type PromptRow, type RubricRow } from '../db/schema';
+import { findUsCollege, ipedsCollegeRow, isIpedsId, loadUsColleges, type UsCollege } from './usColleges';
 
 export const CURRENT_CYCLE = '2026-27';
 
@@ -11,8 +12,16 @@ interface CollegesState {
   prompts: PromptRow[];
   rubrics: RubricRow[];
   principles: PrincipleRow[];
+  /** Almost every US college by name, city, state and website. Null until it is first needed. */
+  us: UsCollege[] | null;
 
   load(): Promise<void>;
+  /** Reads the big list of US colleges, once. */
+  loadUs(): Promise<UsCollege[]>;
+  /** Puts a school from the big list into the local database, with no prompts and no guidance. */
+  addUsCollege(school: UsCollege): CollegeRow;
+  /** Fills in schools that essays point at but this device has no row for (essays sync, colleges do not). */
+  resolveMissing(ids: readonly (string | null | undefined)[]): Promise<void>;
   setAdminOpen(open: boolean): void;
   saveCollege(row: CollegeRow): Promise<void>;
   deleteCollege(id: string): Promise<void>;
@@ -34,6 +43,35 @@ export const useColleges = create<CollegesState>((set, get) => ({
   prompts: [],
   rubrics: [],
   principles: [],
+  us: null,
+
+  async loadUs() {
+    const loaded = get().us;
+    if (loaded) return loaded;
+    const { rows } = await loadUsColleges();
+    set({ us: rows });
+    return rows;
+  },
+
+  addUsCollege(school) {
+    const row = ipedsCollegeRow(school, CURRENT_CYCLE);
+    const existing = get().colleges.find((c) => c.id === row.id);
+    if (existing) return existing;
+    set({ colleges: upsert(get().colleges, row).sort((a, b) => a.name.localeCompare(b.name)) });
+    // A copy already stored (and perhaps edited) on this device is never overwritten.
+    void db.colleges.add(row).catch(() => {});
+    return row;
+  },
+
+  async resolveMissing(ids) {
+    const missing = () => [...new Set(ids.filter(isIpedsId))].filter((id) => !get().colleges.some((c) => c.id === id));
+    if (missing().length === 0) return;
+    const us = await get().loadUs();
+    for (const id of missing()) {
+      const school = findUsCollege(id, us);
+      if (school) get().addUsCollege(school);
+    }
+  },
 
   async load() {
     const [colleges, prompts, rubrics, principles] = await Promise.all([
@@ -135,8 +173,13 @@ export function collegeNotes(
   if (college) {
     lines.push(`College: ${college.name} (${college.cycleYear} cycle).`);
     if (college.wants) lines.push(`What the school says it wants${college.verified ? '' : ' (UNVERIFIED, may be out of date)'}: ${college.wants}`);
-    for (const r of rubricsFor(college, rubrics)) {
+    const published = rubricsFor(college, rubrics);
+    for (const r of published) {
       lines.push(`${r.title}${r.verified ? '' : ' (UNVERIFIED)'}: ${r.criteria.map((c) => c.name).join('; ')}.`);
+    }
+    // Nothing stored for this school: say so, so the counselor does not fill the gap from memory.
+    if (!college.wants && published.length === 0) {
+      lines.push('Nothing this school has published about what it looks for is stored here. Do not state or guess what this school wants.');
     }
   }
   const usable = principles.filter((p) => p.verified).slice(0, 8);

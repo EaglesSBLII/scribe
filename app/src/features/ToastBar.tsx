@@ -14,7 +14,7 @@ export function ToastBar() {
   return (
     <div
       role="status"
-      className="fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-4 rounded-md bg-ink px-4 py-2 text-sm text-white shadow-lg"
+      className="fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-4 rounded-md border border-line bg-surface px-4 py-2 text-sm text-ink shadow-lg"
     >
       <span>{toast.text}</span>
       {toast.action && (

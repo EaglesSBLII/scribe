@@ -57,6 +57,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), localOnlyCsp(), serviceWorker()],
   // In development the local helper (npm start) provides speech-to-text.
   server: { proxy: { '/api': 'http://127.0.0.1:4310' } },
+  // The preview server is what the browser tests run against. It must never reach a real Scribe
+  // on this Mac: tests would sync their essays into it.
+  preview: { proxy: {} },
   test: {
     environment: 'node',
     include: ['tests/unit/**/*.test.ts'],

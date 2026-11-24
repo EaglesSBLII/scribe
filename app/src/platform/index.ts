@@ -48,6 +48,37 @@ export interface PlatformBridge {
   remoteStatus(email: string): Promise<{ enabled: boolean }>;
   remoteSet(email: string, password: string): Promise<{ enabled: boolean }>;
   remoteDisable(email: string): Promise<{ enabled: boolean }>;
+  /** App updates. Only the Mac app has this; in a browser there is nothing to update. */
+  updater?: UpdaterBridge;
+}
+
+export type UpdatePhase = 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error';
+
+/** What the Mac app's updater reports (desktop/src/updater.js). */
+export interface UpdateState {
+  phase: UpdatePhase;
+  /** The new version, once one is known. */
+  version?: string;
+  notes?: string;
+  /** Bytes, while downloading. */
+  size?: number;
+  received?: number;
+  /** 0 to 100 while downloading. */
+  percent?: number;
+  /** In plain words, when phase is 'error'. */
+  error?: string;
+}
+
+export interface UpdaterBridge {
+  state(): Promise<UpdateState>;
+  /** `enabled` is false in a development run, where nothing is checked. */
+  info(): Promise<{ enabled: boolean; current: string; auto: boolean }>;
+  check(): Promise<void>;
+  download(): Promise<void>;
+  /** Swap in the downloaded version and restart. */
+  install(): Promise<void>;
+  setAuto(on: boolean): Promise<boolean>;
+  onState(listener: (state: UpdateState) => void): () => void;
 }
 
 export type Session = { local: true } | { local: false; signedIn: boolean; email: string | null };
@@ -102,17 +133,30 @@ declare global {
       remoteStatus?(email: string): Promise<{ enabled: boolean }>;
       remoteSet?(email: string, password: string): Promise<{ enabled: boolean; error?: string }>;
       remoteDisable?(email: string): Promise<{ enabled: boolean }>;
+      updater?: UpdaterBridge;
     };
   }
 }
 
 const ERROR_MARK = '\n\u0000ERROR ';
 
+let unreachable = false;
+/** The last check of the speech engine got no answer at all (a phone away from its Mac). */
+export const macUnreachable = () => unreachable;
+
 const web: PlatformBridge = {
   kind: 'web',
   async asrAvailable() {
+    let res: Response;
     try {
-      const res = await fetch('/api/health');
+      res = await fetch('/api/health');
+    } catch {
+      // No answer at all: the Mac is out of reach, which is different from "no speech engine".
+      unreachable = true;
+      return false;
+    }
+    unreachable = false;
+    try {
       return res.ok && (await res.json()).asr === true;
     } catch {
       return false;
@@ -210,6 +254,7 @@ function desktop(bridge: NonNullable<Window['scribeBridge']>): PlatformBridge {
       return done;
     },
     remoteDisable: async (email) => (await bridge.remoteDisable?.(email)) ?? { enabled: false },
+    updater: bridge.updater,
     llmModels: () => bridge.llmModels().catch(() => []),
     llmUnload: async (model) => void (await bridge.llmUnload(model).catch(() => false)),
     async llmChat(request, onDelta, signal) {

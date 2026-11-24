@@ -19,4 +19,18 @@ contextBridge.exposeInMainWorld('scribeBridge', {
     ipcRenderer.on('llm:delta', handler);
     return () => ipcRenderer.removeListener('llm:delta', handler);
   },
+  // App updates: the page sees the state and asks; the Mac app does the fetching.
+  updater: {
+    state: () => ipcRenderer.invoke('updater:state'),
+    info: () => ipcRenderer.invoke('updater:info'),
+    check: () => ipcRenderer.invoke('updater:check'),
+    download: () => ipcRenderer.invoke('updater:download'),
+    install: () => ipcRenderer.invoke('updater:install'),
+    setAuto: (on) => ipcRenderer.invoke('updater:setAuto', on === true),
+    onState: (cb) => {
+      const handler = (_e, state) => cb(state);
+      ipcRenderer.on('updater:state', handler);
+      return () => ipcRenderer.removeListener('updater:state', handler);
+    },
+  },
 });

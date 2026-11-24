@@ -24,7 +24,7 @@ const NAMES = new Set(['jarvis', 'jervis', 'jarves', 'jarvus', 'jarvas', 'jarvis
 // Real words Whisper sometimes writes for the name said on its own.
 const SOUND_ALIKES = new Set(['travis', 'service', 'jarvie', 'jarvish']);
 // Non-words in the shape of the name: "Javez", "Jorvis", "Jermis", "Charvis".
-const NAME_SHAPE = /^(j|ch|dj)[aeou]r?[vmbf][aeiu][sz]s?$/;
+const NAME_SHAPE = /^(j|ch|dj)[aeou]{1,2}r?[vmbf][aeiu][sz]s?$/;
 
 /** Lower-case, without accents ("Jörvis" -> "jorvis"). */
 const plain = (word: string) => word.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/’/g, "'");
@@ -42,6 +42,9 @@ const REQUEST_STARTS = new Set([
   "what's", 'word', 'go', 'stop', 'start', 'pause', 'resume', 'coach', 'draft', 'conversation', 'new', 'can', 'could', 'please', 'does', 'do',
   'should', 'why', 'where', 'which', 'when', 'tell', 'give', 'help', 'grade', 'switch', 'cancel', 'yes', 'no', 'never', 'quiet', 'sleep',
   'listen', 'repeat', 'say', 'find', 'show', 'open', 'close', 'equation', 'heading', 'caption', 'math',
+  // Casual ways to start a request.
+  'take', 'get', 'kill', 'nuke', 'strike', 'scrap', 'nix', 'forget', 'oops', 'whoops', 'lose', 'drop', 'ditch', 'trash', 'toss', 'wipe',
+  'revert', 'restore', 'bring', 'play', 'talk', 'hush', 'shut', "let's", 'back', 'continue', 'carry', 'am', 'keep', 'be', 'count', 'clear',
 ]);
 
 interface Tok {

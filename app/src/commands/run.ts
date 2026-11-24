@@ -198,10 +198,13 @@ export function resolve(cmd: Command, doc: Doc, ctx: CommandContext): Outcome {
           const text = n.text.replace(re, (found) => {
             hits++;
             changed = true;
+            const foundCap = /^\p{Lu}/u.test(found);
+            const saidCap = /^\p{Lu}/u.test(cmd.find);
             // Keep a capital if the word being replaced had one.
-            return /^\p{Lu}/u.test(found) && !/^\p{Lu}/u.test(cmd.find)
-              ? cmd.with.replace(/\p{L}/u, (c) => c.toUpperCase())
-              : cmd.with;
+            if (foundCap && !saidCap) return cmd.with.replace(/\p{L}/u, (c) => c.toUpperCase());
+            // Whisper writes "Replace Happy with Relieved": those capitals are its own, not the writer's.
+            if (!foundCap && saidCap) return cmd.with.replace(/\p{L}/u, (c) => c.toLowerCase());
+            return cmd.with;
           });
           return { t: 'text', text };
         });

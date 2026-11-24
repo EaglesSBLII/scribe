@@ -31,7 +31,7 @@ export function Stepper({ essay }: { essay: EssayRow }) {
               else if (essay.stage === 'brainstorm' && mode === 'conversation') void useSettings.getState().set('counselorMode', 'draft');
             }}
             className={`rounded-full px-3 py-1 ${
-              i === at ? 'bg-accent font-medium text-white' : i < at ? 'bg-[#e3efe9] text-accent' : 'text-muted hover:bg-panel'
+              i === at ? 'bg-surface font-medium text-ink ring-1 ring-line' : i < at ? 'text-accent hover:bg-raised' : 'text-muted hover:bg-raised'
             }`}
           >
             {i + 1}. {s.label}
