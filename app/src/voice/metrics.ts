@@ -21,7 +21,18 @@ export interface BargeIn {
   stopped: number;
 }
 
-export const voiceMetrics: { turns: Turn[]; bargeIns: BargeIn[]; current: Turn | null } = { turns: [], bargeIns: [], current: null };
+/** One dictated utterance: when the writer stopped speaking, and when its text was in the essay. */
+export interface Dictated {
+  speechEnd: number;
+  written: number;
+}
+
+export const voiceMetrics: { turns: Turn[]; bargeIns: BargeIn[]; dictated: Dictated[]; current: Turn | null } = { turns: [], bargeIns: [], dictated: [], current: null };
+
+export function recordDictated(speechEnd: number) {
+  voiceMetrics.dictated.push({ speechEnd, written: performance.now() });
+  if (voiceMetrics.dictated.length > 500) voiceMetrics.dictated.shift();
+}
 
 export function beginTurn(speechEnd: number) {
   voiceMetrics.current = { speechEnd };

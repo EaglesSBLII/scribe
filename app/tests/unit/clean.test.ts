@@ -54,6 +54,23 @@ describe('fillers', () => {
     expect(final('Uh, we left. Um. Then it rained.')).toBe('We left. Then it rained.');
   });
 
+  it('removes hesitation sounds however long they are drawn out', () => {
+    expect(final('Uhhhhh, we left early.')).toBe('We left early.');
+    expect(final('I went, uhhhhhhh, to the dock')).toBe('I went to the dock.');
+    expect(final('So ummmmm I waited')).toBe('So I waited.');
+    expect(final('Hmmmm. The engine. Errrr. It did not start.')).toBe('The engine. It did not start.');
+    expect(final('We tried again... uhhh... and again')).toBe('We tried again and again.');
+    expect(final('Ahhhh I forgot the rope')).toBe('I forgot the rope.');
+    expect(final('Uhhhh.')).toBe('');
+    expect(final('Mmmm, uh, ehhh, okay we go')).toBe('Okay we go.');
+  });
+
+  it('keeps short words that are meant', () => {
+    expect(final('Oh, I see. Ah, there it is.')).toBe('Oh, I see. Ah, there it is.');
+    expect(final('To err is human')).toBe('To err is human.');
+    expect(final('The hum of the engine')).toBe('The hum of the engine.');
+  });
+
   it('keeps "like" when it means something', () => {
     expect(final('I like boats')).toBe('I like boats.');
     expect(final('It looks like rain and I would like to go')).toBe('It looks like rain and I would like to go.');

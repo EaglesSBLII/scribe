@@ -8,6 +8,8 @@ import type { HeardWord } from '../dictation/clean';
 export interface Transcript {
   text: string;
   words: HeardWord[];
+  /** How sure Whisper was that this was speech at all. */
+  quality?: { noSpeech: number; logprob: number };
 }
 
 export interface ChatMessage {

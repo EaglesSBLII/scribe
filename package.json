@@ -1,7 +1,7 @@
 {
   "name": "scribe",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Scribe: a free, local, voice-first essay writing app",
   "workspaces": [
     "app",

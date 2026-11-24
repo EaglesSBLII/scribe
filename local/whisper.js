@@ -120,7 +120,7 @@ function createWhisper(resourcesDir, modelName = process.env.SCRIBE_WHISPER_MODE
     await engine.start();
   }
 
-  /** wav: Buffer of 16 kHz mono WAV. Returns { text, words: [{ text, start, end }] }. */
+  /** wav: Buffer of 16 kHz mono WAV. Returns { text, words: [{ text, start, end, p }], quality: { noSpeech, logprob } }. */
   async function transcribe(wav, { quick: wantQuick = false } = {}) {
     if (!available()) throw new Error('Whisper is not installed. Run ./setup.sh first.');
     const seconds = Math.max(0, wav.length - 44) / 32000;
@@ -140,15 +140,24 @@ function createWhisper(resourcesDir, modelName = process.env.SCRIBE_WHISPER_MODE
           if (last && !/^\s/.test(w.word)) {
             last.text += w.word;
             last.end = w.end;
+            if (typeof w.probability === 'number') last.p = Math.min(last.p ?? 1, w.probability);
           } else {
-            words.push({ text: w.word.trim(), start: w.start, end: w.end });
+            words.push({ text: w.word.trim(), start: w.start, end: w.end, p: typeof w.probability === 'number' ? w.probability : undefined });
           }
         }
       } else if (seg.text) {
         words.push({ text: seg.text, start: seg.start, end: seg.end });
       }
     }
-    return { text: (data.text ?? '').trim(), words };
+    // How sure Whisper was, so a stretch of noise it "heard" words in can be told from speech.
+    const segs = data.segments ?? [];
+    const quality = segs.length
+      ? {
+          noSpeech: Math.max(...segs.map((x) => x.no_speech_prob ?? 0)),
+          logprob: segs.reduce((n, x) => n + (x.avg_logprob ?? 0), 0) / segs.length,
+        }
+      : { noSpeech: 1, logprob: -10 };
+    return { text: (data.text ?? '').trim(), words, quality };
   }
 
   function stop() {

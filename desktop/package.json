@@ -1,7 +1,7 @@
 {
   "name": "@scribe/desktop",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Scribe for Mac",
   "author": "Scribe",
   "main": "src/main.js",

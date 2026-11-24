@@ -17,7 +17,8 @@ test('spoken commands edit the essay through real Whisper', async ({ page }) => 
   await expect(para).toHaveText('The boat was gone. We tried again.', { timeout: 40_000 });
 
   // The parsed operation is shown first, then applied.
-  await expect(chip).toHaveText(/Inserting after P1·S1/, { timeout: 30_000 });
+  // (The preview is on screen for under half a second now, so either wording counts.)
+  await expect(chip).toHaveText(/Insert(ing|ed) after P1·S1/, { timeout: 30_000 });
   await expect(para).toHaveText('The boat was gone. I was nervous. We tried again.', { timeout: 10_000 });
   await expect(chip).toHaveText(/Inserted after P1·S1/);
 

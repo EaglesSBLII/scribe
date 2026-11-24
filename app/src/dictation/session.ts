@@ -11,13 +11,14 @@
 import { create } from 'zustand';
 import { Chunker, encodeWav, SAMPLE_RATE } from './chunker';
 import { makeResampler } from './resample';
+import { looksLikeNoise, makeHighPass } from './frontend';
 import { clean, type HeardWord } from './clean';
-import { macUnreachable, platform, Unreachable } from '../platform';
+import { macUnreachable, platform, Unreachable, type Transcript } from '../platform';
 import { hasQueuedAudio, queueAudio } from '../sync/queue';
 import { useStore } from '../store';
 import { useSettings } from '../settings';
 import { isOwnVoice, playbackAge, quietSince, speak, stopSpeaking, useSpeech } from '../speech';
-import { beginTurn, mark, recordBargeIn } from '../voice/metrics';
+import { beginTurn, mark, recordBargeIn, recordDictated } from '../voice/metrics';
 import { mayChangeEssay as changesEssay, parseCommand } from '../commands/parse';
 import { isSleepRequest, readWake } from '../voice/wake';
 import { playEarcon, unlockAudio } from '../voice/earcons';
@@ -55,7 +56,8 @@ const MIN_SPEECH_SECONDS = 0.35;
 const ECHO_TAIL_MS = 300;
 /** A shorter pause ends an utterance while waiting for the wake word, so it answers quickly. */
 const STANDBY_SILENCE = 0.5;
-const DICTATION_SILENCE = 0.9;
+const DICTATION_SILENCE = 0.8;
+const DICTATION_EARLY = 0.3;
 /** In conversation, a shorter pause ends a turn, so the counselor answers sooner. */
 const CONVERSATION_SILENCE = 0.6;
 /** How long "Jarvis" on its own waits for the request that follows. */
@@ -70,9 +72,37 @@ let chunkNo = 0;
 let awaitTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** An early transcription, started at the first short pause in case the speaker has finished. */
-let early: { length: number; result: Promise<{ text: string; words: HeardWord[] } | null> } | null = null; // always from the quick transcriber
+let early: { length: number; exact: boolean; result: Promise<Heard | null> } | null = null;
+let earlyBusy = false;
+/** How much speech there was at the most recent pause in the stretch being heard. */
+let latestPause = 0;
+/** A newer pause arrived while an early transcription was still running: do it next. */
+let earlyNext: Float32Array | null = null;
 
-type Heard = { text: string; words: HeardWord[] };
+function startEarly(samples: Float32Array) {
+  if (earlyBusy) {
+    earlyNext = samples;
+    return;
+  }
+  earlyBusy = true;
+  earlyNext = null;
+  let done!: (heard: Heard | null) => void;
+  const result = new Promise<Heard | null>((resolve) => { done = resolve; });
+  early = { length: samples.length, exact: true, result };
+  void platform.transcribe(encodeWav(samples)).catch(() => null).then((heard) => {
+    earlyBusy = false;
+    done(heard);
+    const next = earlyNext;
+    // Only worth doing if that stretch of speech is still open; once it has closed, the
+    // closing transcription has already been started.
+    if (next && early && early.length < next.length) startEarly(next);
+    else earlyNext = null;
+  });
+}
+/** The writer's usual speaking level, remembered between microphone sessions. */
+let knownVoice = 0;
+
+type Heard = Transcript;
 
 /** What is said right now is for Scribe (the wake word, an answer, the counselor), not for the essay. */
 function saidToScribe(): boolean {
@@ -234,7 +264,9 @@ async function openMic(): Promise<boolean> {
   }
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, noiseSuppression: true, autoGainControl: true, echoCancellation: true },
+      // voiceIsolation asks the system for its strongest "this speaker only" processing where it
+      // exists (it is ignored elsewhere); the other three are the browser's own clean-up.
+      audio: { channelCount: 1, noiseSuppression: true, autoGainControl: true, echoCancellation: true, voiceIsolation: true } as MediaTrackConstraints,
     });
   } catch {
     fail('Scribe needs permission to use the microphone.');
@@ -250,20 +282,34 @@ async function openMic(): Promise<boolean> {
   if (ctx.state === 'suspended') void ctx.resume();
   await ctx.audioWorklet.addModule(new URL('mic-worklet.js', document.baseURI).href);
 
+  const rumbleOut = makeHighPass();
   chunker = new Chunker({
+    startVoice: knownVoice,
+    interimEvery: 1,
     onSpeechStart: () => {
       useDictation.setState({ hearing: true });
       chunker?.setEndSilence(endSilenceNow());
+      // Something said to Scribe is short, so its quick transcription starts at the first
+      // hint of a pause. Dictation is heard exactly, which takes longer, so it waits for a
+      // pause that is likely to be the end of the sentence rather than a breath.
+      chunker?.setEarlyQuiet(saidToScribe() ? 0.12 : DICTATION_EARLY);
     },
     earlyQuiet: 0.12,
     // Start transcribing at the first short pause; if the speaker stops there, the answer is already on its way.
     onEarly: (samples) => {
+      latestPause = samples.length;
       if (samples.length < MIN_SPEECH_SECONDS * SAMPLE_RATE) return;
-      early = { length: samples.length, result: platform.transcribe(encodeWav(samples), true).catch(() => null) };
+      if (saidToScribe()) {
+        early = { length: samples.length, exact: false, result: platform.transcribe(encodeWav(samples), true).catch(() => null) };
+        return;
+      }
+      // Dictating: hear it exactly straight away, so if the speaker has stopped here the
+      // finished text is ready the moment the pause is long enough. One at a time.
+      startEarly(samples);
     },
     onInterim: (samples) => {
       // Rough text is shown only while dictating; skip a preview if the last one is still being worked out.
-      if (interimBusy || !useDictation.getState().on) return;
+      if (interimBusy || earlyBusy || !useDictation.getState().on) return;
       interimBusy = true;
       const mine = chunkNo;
       platform.transcribe(encodeWav(samples), true)
@@ -277,6 +323,7 @@ async function openMic(): Promise<boolean> {
     },
     onChunk: (samples, paused, quietSeconds) => {
       chunkNo++;
+      knownVoice = chunker?.voiceLevel ?? knownVoice;
       useDictation.setState({ hearing: false });
       const speculative = early;
       early = null;
@@ -285,7 +332,8 @@ async function openMic(): Promise<boolean> {
       const speechEnd = performance.now() - quietSeconds * 1000;
       const speechStart = performance.now() - (samples.length / SAMPLE_RATE) * 1000;
       // The early transcription covers this utterance if nothing but silence was added since.
-      const reuse = paused && speculative && samples.length >= speculative.length && samples.length - speculative.length <= 1.2 * SAMPLE_RATE;
+      // (It must be the transcription of the latest pause: an older one would miss whatever was said after it.)
+      const reuse = paused && speculative && speculative.length === latestPause && samples.length >= speculative.length && samples.length - speculative.length <= 1.2 * SAMPLE_RATE;
       const wav = encodeWav(samples);
       // Chunks are transcribed one at a time so the text arrives in the order it was said.
       chain = chain.then(async () => {
@@ -297,7 +345,10 @@ async function openMic(): Promise<boolean> {
         try {
           // Earlier recordings are still waiting: this one waits behind them, to keep the order.
           if (keepable() && hasQueuedAudio()) return await keep();
-          const heard = await hear(wav, reuse ? await speculative.result : null);
+          const rough = reuse ? await speculative.result : null;
+          const heard = rough && speculative?.exact ? rough : await hear(wav, rough);
+          // Wind, traffic or a bump that Whisper "heard" words in is not the writer.
+          if (looksLikeNoise(heard, samples)) return;
           const state = useDictation.getState();
           // Scribe's own voice coming back through the microphone is never taken as the writer's.
           // Only speech that began while Scribe was talking (or just after) can be its echo:
@@ -318,6 +369,7 @@ async function openMic(): Promise<boolean> {
             if (question) askCounselor(question);
           } else {
             await heardWhileDictating(heard.words, paused);
+            recordDictated(speechEnd);
           }
         } catch (err) {
           if (err instanceof Unreachable && keepable()) await keep().catch(() => {});
@@ -332,8 +384,10 @@ async function openMic(): Promise<boolean> {
   const source = ctx.createMediaStreamSource(stream);
   const node = new AudioWorkletNode(ctx, 'mic-capture');
   node.port.onmessage = (e: MessageEvent<Float32Array>) => {
-    const data = toWhisperRate(e.data);
-    if (!data.length) return;
+    const resampled = toWhisperRate(e.data);
+    if (!resampled.length) return;
+    // Take out the low rumble of wind and traffic before anything listens to it.
+    const data = rumbleOut(resampled);
     const speech = useSpeech.getState();
     if (speech.audible) {
       // With interrupting switched off, the microphone is simply ignored while Scribe speaks.

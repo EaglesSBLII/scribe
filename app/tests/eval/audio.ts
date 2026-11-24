@@ -35,7 +35,8 @@ export interface Utterance {
 export function utterances(samples: Float32Array, opts: ChunkerOptions = {}): Utterance[] {
   const found: Utterance[] = [];
   let fed = 0;
-  const chunker = new Chunker({ ...opts, onChunk: (s) => found.push({ endsAt: fed / 16000, samples: s }) });
+  // (A stretch too quiet to be the speaker arrives empty, and is skipped, as the app does.)
+  const chunker = new Chunker({ ...opts, onChunk: (s) => s.length && found.push({ endsAt: fed / 16000, samples: s }) });
   for (let i = 0; i < samples.length; i += 1600) {
     fed = Math.min(samples.length, i + 1600);
     chunker.feed(samples.subarray(i, fed));

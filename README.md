@@ -10,7 +10,7 @@ Say **“Jarvis”** to wake it, talk to the counselor out loud and hear it answ
 
 ## Download for Mac
 
-Get **Scribe-0.3.0-arm64.dmg** from the [latest release](https://github.com/EaglesSBLII/scribe/releases/latest). It is for Apple Silicon Macs (M1 or newer) and was built on macOS 26; it has not been tried on older versions of macOS.
+Get **Scribe-0.3.1-arm64.dmg** from the [latest release](https://github.com/EaglesSBLII/scribe/releases/latest). It is for Apple Silicon Macs (M1 or newer) and was built on macOS 26; it has not been tried on older versions of macOS.
 
 1. Open the .dmg and drag **Scribe** into **Applications**.
 2. Scribe is not signed with an Apple developer certificate, so macOS blocks it the first time. Open Terminal and run:
@@ -95,6 +95,29 @@ What Scribe cleans up:
 - **Repeats and false starts:** "the the dock", "I was I was going", "b-b-boat".
 - **Capitals and sentence ends:** sentence starts and "I" are capitalised, and a period closes what you said when you pause.
 
+### Dictating outdoors, with AirPods
+
+Scribe is built to be used on a walk:
+
+- **Your voice, not the street.** It asks the system for voice isolation and noise suppression, removes the low rumble of wind and traffic, and decides what is speech by how far a sound stands above the background *and* above your own usual level, so quieter voices nearby do not start it writing. A stretch of sound with no voice in it (wind, a passing car) is thrown away even if the speech model "heard" words in it.
+- **Hesitations are dropped however long they are:** "uhhhhh", "ummmm", "hmmmm", "errr".
+- **It keeps up.** Rough text appears about once a second while you talk. The finished sentence is in the essay about a second after you stop, and a long run of speech is written in pieces instead of all at the end. Spoken deletions and insertions are applied after 0.4 seconds (they used to wait 1.2), with Undo.
+- On an iPhone or Mac you can also choose **Voice Isolation** yourself: while Scribe is listening, open Control Center, tap Mic Mode, and pick Voice Isolation.
+
+Measured on two essays read aloud with noise mixed in (synthetic voice and synthetic noise, not AirPods on a real street): 
+
+| Background | Words wrong, before | Words wrong, now |
+|---|---|---|
+| Quiet room | 3.6% | 2.6% |
+| Wind as loud as the voice | 6.8% | 4.6% |
+| Wind twice as loud as the voice | 9.1% | 9.4% |
+| Street, voice 10 dB above it | 5.2% | 5.2% |
+| Street, voice 5 dB above it | 4.9% | 6.8% |
+| People talking, voice 15 dB above them | 20.2% | 3.3% |
+| People talking, voice 10 dB above them | 88.6% | 3.3% |
+
+In steady noise the old version wrote nothing for up to 28 seconds at a time; now the longest wait is about 14. Limits: nothing is written for wind or traffic alone, but other people talking within about 10 to 15 dB of your own level are still written down while you are silent, and it takes a few seconds of your speech before Scribe knows your level. Text lands about 1.2 seconds after you stop speaking.
+
 ### Voice commands for punctuation
 
 | Say | You get |
@@ -156,7 +179,7 @@ More things you can say:
 
 Casual phrasing works too. "Scratch that", "strike that", "nix that", "get rid of that" and "take that back" all remove what you just said; "get rid of", "take out", "kill", "nuke", "ditch" and "drop" all mean delete ("take out the last sentence", "nuke paragraph two"); and filler around a request is ignored ("okay, can you just delete the last three words for me"). Looser phrases such as "oops", "my bad", "forget that", "go back", "how long is my essay", "am I over the limit", "what did I just say", "be quiet" and "let's talk" count only when said to Jarvis by name, because on their own they could be part of your essay.
 
-Measured on 232 recorded requests (58 phrasings, four synthetic voices), the fixed rules alone understood all 232 (100%), and none of 40 ordinary sentences using the same words was taken as a command. Requests the rules miss go to the local model, which is not counted in that figure.
+Measured on 232 recorded requests (58 phrasings, four synthetic voices), the fixed rules alone understood 230 (99.1%), and none of 40 ordinary sentences using the same words was taken as a command. Requests the rules miss go to the local model, which is not counted in that figure.
 
 Scribe never guesses at a deletion. If a request is unclear it asks out loud; if it would remove more than a sentence it reads back what will go and waits for “yes, delete it”. Every applied command plays a short sound, shows a chip with one-tap Undo, and can be undone by saying “undo”.
 

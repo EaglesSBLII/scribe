@@ -73,7 +73,7 @@ export interface Pending {
 
 const AUTO_VERSION_MS = 10 * 60 * 1000;
 /** How long a parsed edit is shown before it is applied. */
-const PREVIEW_MS = 1200;
+const PREVIEW_MS = 400;
 
 interface State {
   ready: boolean;

@@ -24,7 +24,7 @@ const NAMES = new Set(['jarvis', 'jervis', 'jarves', 'jarvus', 'jarvas', 'jarvis
 // Real words Whisper sometimes writes for the name said on its own.
 const SOUND_ALIKES = new Set(['travis', 'service', 'jarvie', 'jarvish']);
 // Non-words in the shape of the name: "Javez", "Jorvis", "Jermis", "Charvis".
-const NAME_SHAPE = /^(j|ch|dj)[aeou]{1,2}r?[vmbf][aeiu][sz]s?$/;
+const NAME_SHAPE = /^(j|ch|dj)[aeou][aeiou]?r?[vmbf][aeiu][sz]s?$/;
 
 /** Lower-case, without accents ("Jörvis" -> "jorvis"). */
 const plain = (word: string) => word.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/’/g, "'");
@@ -79,7 +79,8 @@ export function readWake(heard: HeardWord[]): Wake {
   const sure = NAMES.has(name.key);
   if (!sure && !SOUND_ALIKES.has(name.key) && !NAME_SHAPE.test(name.key)) return NO;
 
-  const after = toks.slice(i + 1);
+  // The name again later in the same breath ("Jarvis, undo, Jarvis, undo") is not part of the request.
+  const after = toks.slice(i + 1).filter((t) => !NAMES.has(t.key));
   // Whisper may leave its own punctuation on the first word of the request.
   const rest = after.map((t) => t.word);
   if (after.length === 0) return { wake: true, alone: true, rest: [] };

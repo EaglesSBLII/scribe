@@ -116,7 +116,7 @@ const CASUAL_RULES: Rule[] = [
   rule('(?:go|step) back(?: one)?(?: step)?|back up|(?:ando|undue|on do|and do)(?: (?:ando|that|it))?', () => ({ k: 'undo' })),
   rule('do (?:that|it) again|put (?:that|it) back in', () => ({ k: 'redo' })),
   rule(
-    "am i over(?: the limit| the word limit)?|how much (?:room|space)(?: do i have| is)? left|how many more(?: words)?(?: can i (?:write|add)| do i (?:get|have))?|how close am i(?: to the limit)?",
+    "(?:am i|and my|and i|my) over(?: the limit| the word limit)?|how much (?:room|space)(?: do i have| is)? left|how many more(?: words)?(?: can i (?:write|add)| do i (?:get|have))?|how close am i(?: to the limit)?",
     () => ({ k: 'count', scope: 'left' }),
   ),
   rule(
@@ -132,7 +132,8 @@ const CASUAL_RULES: Rule[] = [
 ];
 
 const RULES: Rule[] = [
-  rule('(?:oops )?(?:undo|undelete|revert|reverse|restore)(?: (?:that|it|this))?|(?:put|bring) (?:that|it) back', () => ({ k: 'undo' })),
+  // "ando" is how Whisper sometimes writes "undo"; it is not a word, so it is safe anywhere.
+  rule('(?:oops )?(?:undo|ando|undelete|revert|reverse|restore)(?: (?:that|it|this))?|(?:put|bring) (?:that|it) back', () => ({ k: 'undo' })),
   rule(
     "(?:no )?(?:delete|remove|erase) (?:that|it|this|(?:that|the) last (?:bit|part|thing|one)|(?:what|everything) (?:i|i've) (?:just )?said|the last thing i said)|take (?:that|it) (?:back|out)",
     () => ({ k: 'deleteUtterance' }),
@@ -261,17 +262,23 @@ const DELETE_PHRASES = [['get', 'rid', 'of'], ['take', 'out'], ['cut', 'out'], [
 const DELETE_WORDS = new Set([
   'scratch', 'strike', 'scrap', 'nix', 'kill', 'nuke', 'ditch', 'trash', 'axe', 'ax', 'zap', 'wipe', 'lose', 'drop', 'toss', 'chop', 'dump', 'yeet', 'cut', 'clear', 'bin',
   // Whisper sometimes hears the past tense.
-  'deleted', 'removed', 'erased', 'scratched', 'nuked', 'killed', 'scrapped', 'ditched', 'dropped',
+  'deleted', 'removed', 'erased', 'scratched', 'nuked', 'killed', 'scrapped', 'ditched', 'dropped', 'struck',
 ]);
 
 /** "Scratch that" and its close relatives are requests wherever they are said. */
-const SET_PHRASE = new Set(['scratch', 'strike', 'scrap', 'nix']);
+const SET_PHRASE = new Set(['scratch', 'strike', 'scrap', 'nix', 'struck', 'scratched']);
 
 const startsWith = (toks: Tok[], phrase: string[], at = 0) => phrase.every((w, i) => toks[at + i]?.key === w);
 
 /** Strip filler around a request and bring slang for "delete" back to the one word the grammar knows. */
 function simplify(input: Tok[], addressed = true): Tok[] {
-  let toks = input;
+  // "dat" and "dis" are how Whisper sometimes writes "that" and "this".
+  let toks = input.map((t) => (t.key === 'dat' ? { ...t, key: 'that' } : t.key === 'dis' ? { ...t, key: 'this' } : t));
+  // Whisper sometimes writes a short request twice ("draft mode draft mode").
+  if (toks.length >= 2 && toks.length % 2 === 0) {
+    const half = toks.length / 2;
+    if (toks.slice(0, half).every((t, i) => t.key === toks[half + i].key)) toks = toks.slice(0, half);
+  }
   for (let again = true; again && toks.length > 1; ) {
     again = false;
     for (const phrase of LEAD) {

@@ -147,7 +147,11 @@ function createHandler({ dist, whisper, tts, ollama, remote, sync = true }) {
         const wav = await readBody(req);
         const quick = url.searchParams.get('quick') === '1';
         const heard = await whisper.transcribe(wav, { quick });
-        if (process.env.SCRIBE_DEBUG) console.error(`[asr ${quick ? 'quick' : 'full'} ${((wav.length - 44) / 32000).toFixed(1)}s] ${heard.text}`);
+        if (process.env.SCRIBE_DEBUG) {
+          const ps = heard.words.map((w) => w.p).filter((p) => typeof p === 'number');
+          const mean = ps.length ? ps.reduce((x, y) => x + y, 0) / ps.length : 1;
+          console.error(`[asr ${quick ? 'quick' : 'full'} ${((wav.length - 44) / 32000).toFixed(1)}s noSpeech ${heard.quality.noSpeech.toFixed(2)} logprob ${heard.quality.logprob.toFixed(2)} p ${mean.toFixed(2)}] ${heard.text}`);
+        }
         return send(res, 200, heard);
       }
       if (api) return send(res, 404, { error: 'Not found.' });

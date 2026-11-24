@@ -24,6 +24,9 @@ test('speech becomes clean text in the essay, with nothing leaving this machine'
 
   const para = page.getByRole('textbox', { name: 'Paragraph 1', exact: true });
   await expect(para).toHaveText('So I went to the dock. I love boats. The Jurassic period was huge.', { timeout: 60_000 });
+  // How long after the speaker stops does the text land? (Reported; the recording has three sentences.)
+  const waits = await page.evaluate(() => (window as unknown as { __scribeVoice: { dictated: { speechEnd: number; written: number }[] } }).__scribeVoice.dictated.map((d) => Math.round(d.written - d.speechEnd)));
+  console.log(`\nDICTATION: text in the essay ${waits.join(', ')} ms after each sentence ended`);
   await page.getByRole('button', { name: 'Stop dictation' }).click();
 
   // It was saved like any other edit, and one undo takes it back out.

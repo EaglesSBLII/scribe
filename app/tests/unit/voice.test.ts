@@ -85,7 +85,9 @@ describe('earcons', () => {
 });
 
 describe('starting transcription early', () => {
-  const tone = (seconds: number) => Float32Array.from({ length: seconds * SAMPLE_RATE }, (_, i) => 0.2 * Math.sin(i / 5));
+  // A voice-like tone: it swells and dips several times a second, as syllables do.
+  const tone = (seconds: number) =>
+    Float32Array.from({ length: seconds * SAMPLE_RATE }, (_, i) => 0.2 * Math.sin(i / 5) * (0.08 + 0.92 * Math.abs(Math.sin((Math.PI * 4 * i) / SAMPLE_RATE))));
   const quiet = (seconds: number) => new Float32Array(seconds * SAMPLE_RATE);
 
   it('offers the audio at the start of a pause, and reports how long ago speech stopped when the chunk closes', () => {
@@ -98,8 +100,8 @@ describe('starting transcription early', () => {
     });
     for (const part of [quiet(0.5), tone(1), quiet(1)]) for (let i = 0; i < part.length; i += 800) chunker.feed(part.slice(i, i + 800));
     expect(events).toHaveLength(2);
-    expect(events[0]).toMatch(/^early 1\.[34]$/);
-    expect(events[1]).toMatch(/^chunk 1\.[89] true quiet 0\.6$/);
+    expect(events[0]).toMatch(/^early 1.[3-5]$/);
+    expect(events[1]).toMatch(/^chunk (1\.[89]|2\.0) true quiet 0\.6$/);
   });
 
   it('offers again if the speaker carries on after a short pause', () => {
@@ -126,5 +128,59 @@ describe('how much of the conversation the model is shown', () => {
       if (n >= 12) expect(shown.length).toBeGreaterThanOrEqual(12);
       expect(shown.at(-1)).toBe(n ? n - 1 : undefined);
     }
+  });
+});
+
+describe('telling a voice from outdoor noise', () => {
+  it('the rumble filter removes what is below a voice and keeps the voice', async () => {
+    const { makeHighPass } = await import('../../src/dictation/frontend');
+    const level = (x: Float32Array) => Math.sqrt(x.slice(4000).reduce((n, v) => n + v * v, 0) / (x.length - 4000));
+    const sine = (hz: number) => Float32Array.from({ length: 16000 }, (_, i) => Math.sin((2 * Math.PI * hz * i) / 16000));
+    expect(level(makeHighPass()(sine(30))) / level(sine(30))).toBeLessThan(0.1);
+    expect(level(makeHighPass()(sine(400))) / level(sine(400))).toBeGreaterThan(0.95);
+  });
+
+  it('a sound with a pitch counts as voiced; hiss does not', async () => {
+    const { voicedShare, looksLikeNoise } = await import('../../src/dictation/frontend');
+    let seed = 3;
+    const hiss = Float32Array.from({ length: 32000 }, () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296 - 0.5) * 0.4);
+    const vowel = Float32Array.from({ length: 32000 }, (_, i) => 0.2 * Math.sin((2 * Math.PI * 140 * i) / 16000) + 0.1 * Math.sin((2 * Math.PI * 280 * i) / 16000));
+    expect(voicedShare(hiss)).toBeLessThan(0.1);
+    expect(voicedShare(vowel)).toBeGreaterThan(0.9);
+    const words = (text: string, p: number) => text.split(' ').map((t) => ({ text: t, p }));
+    // Whisper "heard" a sentence in hiss, and was not sure of it: dropped.
+    expect(looksLikeNoise({ text: "And I'll see you next time.", words: words("And I'll see you next time.", 0.6), quality: { noSpeech: 0, logprob: -0.4 } }, hiss)).toBe(true);
+    // The same words, said: kept.
+    expect(looksLikeNoise({ text: "And I'll see you next time.", words: words("And I'll see you next time.", 0.6), quality: { noSpeech: 0, logprob: -0.4 } }, vowel)).toBe(false);
+    // A whisper has no pitch, but Whisper is sure of the words: kept.
+    expect(looksLikeNoise({ text: 'The boat was gone.', words: words('The boat was gone.', 0.95), quality: { noSpeech: 0, logprob: -0.1 } }, hiss)).toBe(false);
+    // Stock phrases Whisper writes for silence, with low confidence: dropped. Said clearly: kept.
+    expect(looksLikeNoise({ text: 'Thank you.', words: words('Thank you.', 0.5), quality: { noSpeech: 0.5, logprob: -0.6 } })).toBe(true);
+    expect(looksLikeNoise({ text: 'Thank you.', words: words('Thank you.', 0.97), quality: { noSpeech: 0.01, logprob: -0.1 } })).toBe(false);
+  });
+
+  it('steady background does not hold a stretch of speech open, and quieter voices nearby do not start one', () => {
+    const rate = SAMPLE_RATE;
+    const voice = (seconds: number, level: number) =>
+      Float32Array.from({ length: seconds * rate }, (_, i) => level * Math.sin(i / 5) * (0.08 + 0.92 * Math.abs(Math.sin((Math.PI * 4 * i) / rate))));
+    let seed = 9;
+    const noise = (seconds: number, level: number) => Float32Array.from({ length: seconds * rate }, () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296 - 0.5) * 2 * level);
+    const add = (a: Float32Array, b: Float32Array) => a.map((v, i) => v + b[i]);
+    const chunks: number[] = [];
+    const chunker = new Chunker({ endSilence: 0.8, onChunk: (s) => chunks.push(s.length / rate) });
+    const feed = (x: Float32Array) => { for (let i = 0; i < x.length; i += 800) chunker.feed(x.slice(i, i + 800)); };
+    // Background alone, then two sentences over it, then background alone again.
+    feed(noise(6, 0.03));
+    feed(add(voice(2, 0.3), noise(2, 0.03)));
+    feed(noise(2, 0.03));
+    feed(add(voice(2, 0.3), noise(2, 0.03)));
+    feed(noise(6, 0.03));
+    // A much quieter voice nearby.
+    feed(add(voice(2, 0.04), noise(2, 0.03)));
+    feed(noise(3, 0.03));
+    chunker.flush();
+    const spoken = chunks.filter((c) => c > 1.5);
+    expect(spoken).toHaveLength(2);
+    for (const c of spoken) expect(c).toBeLessThan(4);
   });
 });

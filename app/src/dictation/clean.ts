@@ -9,6 +9,8 @@ export interface HeardWord {
   /** Seconds from the start of the audio chunk, when Whisper provides them. */
   start?: number;
   end?: number;
+  /** How sure Whisper was of this word, 0 to 1, when it says. */
+  p?: number;
 }
 
 export type Piece =
@@ -48,7 +50,10 @@ type Item =
 
 const TERMINAL = /[.?!]["”')\]]*$/;
 
-const HARD_FILLERS = new Set(['um', 'umm', 'uh', 'uhh', 'uhm', 'er', 'erm', 'hmm', 'hm', 'mm']);
+// Hesitation sounds, however long they are drawn out: "um", "uhhhh", "ummmm", "errr", "hmmm", "ahhh".
+// Short "ah", "oh" and "eh" are words people mean, so they stay.
+const FILLER_SHAPE = /^(u+h+m*|u+m+|e+r+m+|er|e+r{3,}|e{2,}r+|h+m+|m{2,}|a{2,}h+|a+h{2,}|e+h{2,}|u{3,})$/;
+const HARD_FILLERS = { has: (key: string) => FILLER_SHAPE.test(key.replace(/[^a-z]/g, '')) };
 
 // "like" after one of these is a real word ("I like boats", "looks like rain").
 const LIKE_IS_REAL_AFTER = new Set([
