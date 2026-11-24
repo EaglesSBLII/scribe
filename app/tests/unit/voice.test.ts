@@ -184,3 +184,55 @@ describe('telling a voice from outdoor noise', () => {
     for (const c of spoken) expect(c).toBeLessThan(4);
   });
 });
+
+describe('review fixes for outdoor dictation', () => {
+  it('a name inside a request is kept; only a repeated call is trimmed', async () => {
+    const { readWake } = await import('../../src/voice/wake');
+    const w = (s: string) => s.split(' ').map((text) => ({ text }));
+    const rest = (s: string) => readWake(w(s)).rest.map((x) => x.text).join(' ');
+    expect(rest('Jarvis, replace Jarvis with Travis')).toBe('replace Jarvis with Travis');
+    expect(rest('Jarvis, Ando, Jarvis, Ando,')).toBe('Ando,');
+    expect(rest('Jarvis, go back to the sentence about Jarvis')).toBe('go back to the sentence about Jarvis');
+  });
+
+  it('a quieter speaker is heard again after at most two stretches are set aside', () => {
+    const rate = SAMPLE_RATE;
+    const voice = (seconds: number, level: number) =>
+      Float32Array.from({ length: seconds * rate }, (_, i) => level * Math.sin(i / 5) * (0.08 + 0.92 * Math.abs(Math.sin((Math.PI * 4 * i) / rate))));
+    const quiet = (seconds: number) => new Float32Array(seconds * rate);
+    const got: number[] = [];
+    const chunker = new Chunker({ endSilence: 0.8, onChunk: (s) => got.push(s.length) });
+    const feed = (x: Float32Array) => { for (let i = 0; i < x.length; i += 800) chunker.feed(x.slice(i, i + 800)); };
+    feed(voice(2, 0.5));
+    feed(quiet(1.5));
+    // The same person at a fifth of the level (a different microphone, say).
+    for (let k = 0; k < 4; k++) {
+      feed(voice(2, 0.1));
+      feed(quiet(1.5));
+    }
+    const kept = got.slice(1).filter((n) => n > 0).length;
+    expect(got[0]).toBeGreaterThan(0);
+    expect(kept).toBeGreaterThanOrEqual(2);
+  });
+
+  it('a long stretch closed at a short breath is reported as cut, not as the end of a sentence', () => {
+    const rate = SAMPLE_RATE;
+    const voice = (seconds: number) =>
+      Float32Array.from({ length: seconds * rate }, (_, i) => 0.3 * Math.sin(i / 5) * (0.08 + 0.92 * Math.abs(Math.sin((Math.PI * 4 * i) / rate))));
+    const events: string[] = [];
+    const chunker = new Chunker({ endSilence: 0.8, onChunk: (s, paused) => events.push(`${Math.round(s.length / rate)}s ${paused ? 'paused' : 'cut'}`) });
+    const feed = (x: Float32Array) => { for (let i = 0; i < x.length; i += 800) chunker.feed(x.slice(i, i + 800)); };
+    feed(voice(15));
+    feed(new Float32Array(Math.round(0.35 * rate)));
+    feed(voice(2));
+    feed(new Float32Array(2 * rate));
+    expect(events[0]).toMatch(/^1[56]s cut$/);
+    expect(events[1]).toMatch(/paused$/);
+  });
+
+  it('"Yeah." said aloud is kept even when Whisper is unsure of it', async () => {
+    const { looksLikeNoise } = await import('../../src/dictation/frontend');
+    const vowel = Float32Array.from({ length: 16000 }, (_, i) => 0.2 * Math.sin((2 * Math.PI * 140 * i) / 16000));
+    expect(looksLikeNoise({ text: 'Yeah.', words: [{ text: 'Yeah.', p: 0.6 }], quality: { noSpeech: 0.1, logprob: -0.5 } }, vowel)).toBe(false);
+  });
+});

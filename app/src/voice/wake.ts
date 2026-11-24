@@ -79,8 +79,13 @@ export function readWake(heard: HeardWord[]): Wake {
   const sure = NAMES.has(name.key);
   if (!sure && !SOUND_ALIKES.has(name.key) && !NAME_SHAPE.test(name.key)) return NO;
 
-  // The name again later in the same breath ("Jarvis, undo, Jarvis, undo") is not part of the request.
-  const after = toks.slice(i + 1).filter((t) => !NAMES.has(t.key));
+  // Whisper sometimes writes a short call twice ("Jarvis, undo, Jarvis, undo"): the second half
+  // is dropped. A name anywhere else in a request ("replace Jarvis with Travis") is left alone.
+  let after = toks.slice(i + 1);
+  const again2 = after.findIndex((t) => NAMES.has(t.key));
+  if (again2 > 0 && after.length === 2 * again2 + 1 && after.slice(0, again2).every((t, k) => t.key === after[again2 + 1 + k].key)) {
+    after = after.slice(0, again2);
+  }
   // Whisper may leave its own punctuation on the first word of the request.
   const rest = after.map((t) => t.word);
   if (after.length === 0) return { wake: true, alone: true, rest: [] };

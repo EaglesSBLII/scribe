@@ -116,7 +116,7 @@ Measured on two essays read aloud with noise mixed in (synthetic voice and synth
 | People talking, voice 15 dB above them | 20.2% | 3.3% |
 | People talking, voice 10 dB above them | 88.6% | 3.3% |
 
-In steady noise the old version wrote nothing for up to 28 seconds at a time; now the longest wait is about 14. Limits: nothing is written for wind or traffic alone, but other people talking within about 10 to 15 dB of your own level are still written down while you are silent, and it takes a few seconds of your speech before Scribe knows your level. Text lands about 1.2 seconds after you stop speaking.
+In steady noise the old version wrote nothing for up to 28 seconds at a time; now the longest wait is about 14. Limits: nothing is written for wind or traffic alone, but other people talking within about 15 dB of your own level are still written down while you are silent (77 to 88 words in a 30-second test), and it takes a few seconds of your speech before Scribe knows your level. Text lands about 1.2 seconds after you stop speaking.
 
 ### Voice commands for punctuation
 

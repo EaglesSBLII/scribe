@@ -171,7 +171,8 @@ export class Chunker {
     }
     // A long stretch is closed at a shorter pause, so text keeps arriving while someone talks on.
     const long = this.opts.classic ? 1 : seconds(this.speech.length) > 14 ? 0.3 : seconds(this.speech.length) > 8 ? 0.5 : 1;
-    if (seconds(this.quietFrames) >= this.opts.endSilence * long) return this.close(true);
+    // (Closed that way it is not the end of a sentence, so it is reported as cut, not paused.)
+    if (seconds(this.quietFrames) >= this.opts.endSilence * long) return this.close(long === 1);
     if (seconds(this.speech.length) >= this.opts.maxLength) return this.close(false);
     if (seconds(this.framesSinceInterim) >= this.opts.interimEvery) {
       this.framesSinceInterim = 0;
@@ -188,6 +189,9 @@ export class Chunker {
     this.quietFrames = 0;
     if (!this.opts.classic && this.voiceAtStart > 0 && this.peak < this.voiceAtStart * STRETCH_OF_VOICE) {
       // Too quiet to be this speaker: let whoever is listening know the stretch came to nothing.
+      // If it was the speaker after all (a quieter microphone, a lowered voice), the level
+      // comes down with each stretch set aside, so at most one or two are lost.
+      this.voice *= 0.6;
       this.opts.onChunk?.(new Float32Array(0), paused, quietSeconds);
       return;
     }

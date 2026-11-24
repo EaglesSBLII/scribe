@@ -63,6 +63,8 @@ export function looksLikeNoise(heard: { text: string; words: { text: string; p?:
   // No pitch anywhere in it (so no vowels), and Whisper was not sure either: wind or traffic.
   // A whisper has no pitch too, which is why being sure of the words is enough to keep it.
   if (samples && mean < 0.85 && voicedShare(samples) < 0.15) return true;
+  // A stock phrase with a clear voice in it was really said ("Yeah." in answer to a question).
+  if (samples && voicedShare(samples) > 0.5) return false;
   return PHANTOMS.test(plain) && (mean < 0.75 || (q?.noSpeech ?? 0) > 0.35);
 }
 

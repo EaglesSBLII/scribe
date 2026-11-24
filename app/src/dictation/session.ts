@@ -74,8 +74,6 @@ let awaitTimer: ReturnType<typeof setTimeout> | undefined;
 /** An early transcription, started at the first short pause in case the speaker has finished. */
 let early: { length: number; exact: boolean; result: Promise<Heard | null> } | null = null;
 let earlyBusy = false;
-/** How much speech there was at the most recent pause in the stretch being heard. */
-let latestPause = 0;
 /** A newer pause arrived while an early transcription was still running: do it next. */
 let earlyNext: Float32Array | null = null;
 
@@ -95,11 +93,11 @@ function startEarly(samples: Float32Array) {
     const next = earlyNext;
     // Only worth doing if that stretch of speech is still open; once it has closed, the
     // closing transcription has already been started.
-    if (next && early && early.length < next.length) startEarly(next);
+    if (next && (!early || early.length < next.length)) startEarly(next);
     else earlyNext = null;
   });
 }
-/** The writer's usual speaking level, remembered between microphone sessions. */
+/** The writer's usual speaking level, as learned in this microphone session. */
 let knownVoice = 0;
 
 type Heard = Transcript;
@@ -297,7 +295,6 @@ async function openMic(): Promise<boolean> {
     earlyQuiet: 0.12,
     // Start transcribing at the first short pause; if the speaker stops there, the answer is already on its way.
     onEarly: (samples) => {
-      latestPause = samples.length;
       if (samples.length < MIN_SPEECH_SECONDS * SAMPLE_RATE) return;
       if (saidToScribe()) {
         early = { length: samples.length, exact: false, result: platform.transcribe(encodeWav(samples), true).catch(() => null) };
@@ -327,13 +324,17 @@ async function openMic(): Promise<boolean> {
       useDictation.setState({ hearing: false });
       const speculative = early;
       early = null;
+      // Anything still queued for early transcription belonged to this stretch.
+      earlyNext = null;
       if (samples.length < MIN_SPEECH_SECONDS * SAMPLE_RATE) return useDictation.setState({ interim: '' });
       useDictation.setState((s) => ({ waiting: s.waiting + 1 }));
       const speechEnd = performance.now() - quietSeconds * 1000;
       const speechStart = performance.now() - (samples.length / SAMPLE_RATE) * 1000;
       // The early transcription covers this utterance if nothing but silence was added since.
-      // (It must be the transcription of the latest pause: an older one would miss whatever was said after it.)
-      const reuse = paused && speculative && speculative.length === latestPause && samples.length >= speculative.length && samples.length - speculative.length <= 1.2 * SAMPLE_RATE;
+      // It must reach to where the closing silence began: one from an earlier pause would
+      // miss whatever was said after it.
+      const speechLength = samples.length - Math.round(quietSeconds * SAMPLE_RATE);
+      const reuse = paused && speculative && speculative.length >= speechLength && samples.length >= speculative.length;
       const wav = encodeWav(samples);
       // Chunks are transcribed one at a time so the text arrives in the order it was said.
       chain = chain.then(async () => {
@@ -403,6 +404,8 @@ async function openMic(): Promise<boolean> {
 }
 
 function closeMic() {
+  // A new session may be a different microphone, at a different level.
+  knownVoice = 0;
   chunker?.flush();
   chunker = null;
   stream?.getTracks().forEach((t) => t.stop());
