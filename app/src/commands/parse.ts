@@ -264,10 +264,13 @@ const DELETE_WORDS = new Set([
   'deleted', 'removed', 'erased', 'scratched', 'nuked', 'killed', 'scrapped', 'ditched', 'dropped',
 ]);
 
+/** "Scratch that" and its close relatives are requests wherever they are said. */
+const SET_PHRASE = new Set(['scratch', 'strike', 'scrap', 'nix']);
+
 const startsWith = (toks: Tok[], phrase: string[], at = 0) => phrase.every((w, i) => toks[at + i]?.key === w);
 
 /** Strip filler around a request and bring slang for "delete" back to the one word the grammar knows. */
-function simplify(input: Tok[]): Tok[] {
+function simplify(input: Tok[], addressed = true): Tok[] {
   let toks = input;
   for (let again = true; again && toks.length > 1; ) {
     again = false;
@@ -293,7 +296,12 @@ function simplify(input: Tok[]): Tok[] {
   if (toks.length > 1) {
     const phrase = DELETE_PHRASES.find((p) => toks.length > p.length && startsWith(toks, p));
     if (phrase) toks = [{ ...toks[0], key: 'delete' }, ...toks.slice(phrase.length)];
-    else if (DELETE_WORDS.has(toks[0].key)) toks = [{ ...toks[0], key: 'delete' }, ...toks.slice(1)];
+    else if (DELETE_WORDS.has(toks[0].key)) {
+      // "Drop it." or "Kill that." on its own may be a sentence of the essay. With only a
+      // pronoun after it, slang counts when said to Scribe by name; the set phrases always do.
+      const bare = toks.length === 2 && /^(that|it|this)$/.test(toks[1].key);
+      if (addressed || !bare || SET_PHRASE.has(toks[0].key)) toks = [{ ...toks[0], key: 'delete' }, ...toks.slice(1)];
+    }
     // "take the last sentence out", "take that out"
     else if (toks[0].key === 'take' && toks.at(-1)?.key === 'out' && toks.length > 3) toks = [{ ...toks[0], key: 'delete' }, ...toks.slice(1, -1)];
   }
@@ -311,7 +319,7 @@ export interface ParseOptions {
 }
 
 export function parseCommand(input: HeardWord[] | string, options: ParseOptions = {}): Command | null {
-  const toks = simplify(tokens(input));
+  const toks = simplify(tokens(input), options.addressed === true);
   if (!toks.length || toks.length > 80) return null;
   const text = toks.map((t) => t.key).join(' ');
 

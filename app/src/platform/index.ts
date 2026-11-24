@@ -166,6 +166,8 @@ const web: PlatformBridge = {
     try {
       const res = await fetch('/api/session');
       if (res.ok) return (await res.json()) as Session;
+      // Refused: this is another device and the Mac has not let it in (phone access is off).
+      if (res.status === 401 || res.status === 403) return { local: false, signedIn: false, email: null };
     } catch { /* offline, or opened without the helper: this device's own copy is used */ }
     return { local: true };
   },

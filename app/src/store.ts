@@ -156,7 +156,7 @@ interface State {
    * Take in essays that arrived from the Mac's master copy. Returns the ids of
    * essays where this device's own newer changes were kept instead.
    */
-  absorbEssays(incoming: { row: EssayRow; agreed?: Agreed }[], removed: string[]): Promise<string[]>;
+  absorbEssays(incoming: { row: EssayRow; agreed?: Agreed }[], removed: { id: string; agreed?: Agreed }[]): Promise<string[]>;
 }
 
 // Writes are queued so they reach the database in the order they happened.
@@ -1007,8 +1007,18 @@ export const useStore = create<State>((set, get) => {
         set({ essays: [...others, row].sort((a, b) => a.order - b.order), docRev: get().docRev + (isCurrent ? 1 : 0) });
         persist(() => db.essays.put(row));
       }
-      for (const id of removed) {
-        if (!get().essays.some((e) => e.id === id)) continue;
+      for (const { id, agreed } of removed) {
+        const mine = get().essays.find((e) => e.id === id);
+        if (!mine) continue;
+        if (!agreed || agreed.deleted || agreed.hash !== fingerprint(mine)) {
+          // Deleted on another device, but this copy has changes that were never sent: it is
+          // kept, archived, rather than lost. Its new date carries it back to the other devices.
+          const saved = { ...mine, archived: true, updatedAt: Date.now() };
+          set({ essays: get().essays.map((e) => (e.id === id ? saved : e)), toast: { text: `“${mine.title}” was deleted on another device, but had changes here that were never sent. It was kept, under Archived.` } });
+          persist(() => db.essays.put(saved));
+          kept.push(id);
+          continue;
+        }
         const wasCurrent = get().currentId === id;
         set({ essays: get().essays.filter((e) => e.id !== id) });
         if (wasCurrent) {

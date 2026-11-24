@@ -136,6 +136,14 @@ describe('signing in from another device', () => {
     expect(r.enabled()).toBe(false);
   });
 
+  it('old mistakes are forgotten: only a run of wrong passwords locks sign-in', () => {
+    const { r } = remote();
+    r.setPassword('a@b.co', 'correct horse');
+    const hour = 3_600_000;
+    for (let i = 0; i < 8; i++) expect(() => r.login('a@b.co', 'nope', 1000 + i * hour)).toThrow('Wrong email or password.');
+    expect(r.login('a@b.co', 'correct horse', 1000 + 9 * hour).email).toBe('a@b.co');
+  });
+
   it('a session ends after thirty days', () => {
     const { r } = remote();
     r.setPassword('a@b.co', 'correct horse');

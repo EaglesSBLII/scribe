@@ -2,7 +2,7 @@
 // gives it local Whisper through the preload bridge. The page never goes online.
 // The one thing that does is the updater (updater.js), from this process only:
 // it asks GitHub whether a newer Scribe exists and downloads it when asked to.
-const { app, BrowserWindow, ipcMain, session, systemPreferences } = require('electron');
+const { app, BrowserWindow, ipcMain, session, systemPreferences, shell } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -48,7 +48,11 @@ function createWindow() {
     },
   });
   // The window only ever shows Scribe's own files.
-  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  // A link to a school's own website opens in the writer's browser, never in this window.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https:\/\//i.test(url)) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.loadFile(indexFile());
   win.on('closed', () => { win = null; });

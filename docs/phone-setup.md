@@ -37,7 +37,8 @@ Alternatives, if you would rather not: home Wi-Fi only (no account, but Safari w
 
    Do **not** use `tailscale funnel`: that would publish the address to the internet.
 5. **Mac, in Scribe:** Settings → Phone access → choose a password → Turn on.
-6. **iPhone, in Safari:** open the address from step 4, sign in with your Scribe email and that password, then Share → **Add to Home Screen**.
+6. **Check it asks for sign-in.** On the iPhone, open the address from step 4 followed by `/api/session`. It must show `"local":false`. If it shows `"local":true`, stop: the tunnel is not marking the phone as another device, so run `tailscale serve --https=443 off` and do not use it until that is fixed.
+7. **iPhone, in Safari:** open the address from step 4, sign in with your Scribe email and that password, then Share → **Add to Home Screen**.
 
 To stop: `tailscale serve --https=443 off` on the Mac, or Settings → Phone access → Turn off in Scribe.
 

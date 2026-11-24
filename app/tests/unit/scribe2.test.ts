@@ -148,7 +148,7 @@ describe('casual ways of saying things', () => {
   const said = (s: string, addressed = false) => parseCommand(s, { addressed });
 
   it.each([
-    'Scratch that.', 'strike that', 'Scrap that.', 'nix that', 'kill that', 'Nuke that.', 'ditch that', 'trash that', 'lose that', 'cut that',
+    'Scratch that.', 'strike that', 'Scrap that.', 'nix that',
     'Delete that.', 'delete it', 'erase that', 'remove that', 'take that back', 'Take that out.', 'get rid of that', 'No, delete that.',
     'delete that last bit', 'delete the last thing I said', 'Okay, scratch that.', 'Actually, scratch that.', 'Wait, scratch that.',
     'Um, scratch that please.', 'Can you scratch that?', 'Just delete that for me.', 'Yo, scratch that real quick.', 'get rid of what I just said',
@@ -257,5 +257,16 @@ describe('which requests are heard with the exact transcriber', () => {
     for (const s of ['Should I cut the line about the notebook?', 'What should I add about my grandfather?', 'Is the ending clear?', 'How many words do I have?']) {
       expect(mayChangeEssay(w(s)), s).toBe(false);
     }
+  });
+});
+
+describe('slang with only a pronoun after it', () => {
+  it('is a request when said to Scribe by name, and essay text otherwise', () => {
+    for (const s of ['Drop it.', 'Kill it.', 'kill that', 'Nuke that.', 'ditch that', 'trash that', 'Lose that.', 'cut that', 'Clear it.']) {
+      expect(parseCommand(s), `${s} (while dictating)`).toBeNull();
+      expect(parseCommand(s, { addressed: true }), s).toEqual({ k: 'deleteUtterance' });
+    }
+    // With a real target it is a request either way.
+    expect(parseCommand('drop the last sentence')).toMatchObject({ k: 'delete', what: 'sentences' });
   });
 });

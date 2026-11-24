@@ -107,12 +107,12 @@ export async function syncNow(): Promise<boolean> {
     }
 
     const incoming: { row: EssayRow; agreed?: Agreed }[] = [];
-    const removed: string[] = [];
+    const removed: { id: string; agreed?: Agreed }[] = [];
     let touched = false;
     for (const r of answer.pull) {
       const id = idOf(r.coll, r.key);
       if (r.coll === 'essays') {
-        if (r.deleted) removed.push(r.key);
+        if (r.deleted) removed.push({ id: r.key, agreed: agreed.get(id) });
         else incoming.push({ row: { ...(r.value as Omit<EssayRow, 'accountId'>), accountId }, agreed: agreed.get(id) });
         continue;
       }

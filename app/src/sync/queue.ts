@@ -10,8 +10,17 @@ import { platform, Unreachable } from '../platform';
 import { useStore } from '../store';
 import { useSync } from './index';
 
+/** How many recordings wait for each essay. */
+let waitingFor = new Map<string, number>();
+/** Failed attempts per recording, so one the Mac cannot read does not block the rest for ever. */
+const attempts = new Map<number, number>();
+const MAX_ATTEMPTS = 3;
+
 async function count(accountId: string) {
-  useSync.setState({ queued: await db.audioQueue.where('accountId').equals(accountId).count() });
+  const all = await db.audioQueue.where('accountId').equals(accountId).toArray();
+  waitingFor = new Map();
+  for (const q of all) waitingFor.set(q.essayId, (waitingFor.get(q.essayId) ?? 0) + 1);
+  useSync.setState({ queued: all.length });
 }
 
 /** Count the recordings waiting on this device (after a reload, for instance). */
@@ -21,7 +30,7 @@ export async function refreshQueued(): Promise<void> {
 }
 
 /** Recordings are waiting, so anything said now must wait behind them to keep the order. */
-export const hasQueuedAudio = () => useSync.getState().queued > 0;
+export const hasQueuedAudio = () => (waitingFor.get(useStore.getState().currentId ?? '') ?? 0) > 0;
 
 /** Keep an utterance for later. Returns false if there is no essay open to put it in. */
 export async function queueAudio(wav: ArrayBuffer, paused: boolean): Promise<boolean> {
@@ -54,8 +63,18 @@ export async function drainAudio(): Promise<void> {
       try {
         heard = await platform.transcribe(next.wav);
       } catch (err) {
-        if (err instanceof Unreachable) useSync.setState({ online: false });
-        break;
+        if (err instanceof Unreachable) {
+          useSync.setState({ online: false });
+          break;
+        }
+        // The Mac answered but could not read this one. Try a few times, then let the rest through.
+        const tries = (attempts.get(next.id!) ?? 0) + 1;
+        attempts.set(next.id!, tries);
+        if (tries < MAX_ATTEMPTS) break;
+        await db.audioQueue.delete(next.id!);
+        attempts.delete(next.id!);
+        useStore.getState().setToast({ text: 'One saved recording could not be transcribed and was dropped.' });
+        continue;
       }
       // The essay may have been switched while the Mac was working.
       if (useStore.getState().currentId !== next.essayId) continue;

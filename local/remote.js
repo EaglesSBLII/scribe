@@ -92,14 +92,17 @@ function createRemote(dataDir) {
   /** Returns a session token, or throws. Five wrong passwords lock sign-in for 15 minutes. */
   function login(rawEmail, password, now = Date.now()) {
     const email = clean(rawEmail);
-    const f = failures.get(email) ?? { count: 0, until: 0 };
+    let f = failures.get(email) ?? { count: 0, until: 0, last: 0 };
     if (f.until > now) throw new Error('Too many wrong passwords. Try again in 15 minutes.');
+    // Old mistakes are forgotten; only a run of them locks sign-in.
+    if (now - f.last > LOCK_MS) f = { count: 0, until: 0, last: 0 };
     const a = loadAuth();
     const account = a.accounts[email];
     const given = hashPassword(String(password ?? ''), account?.salt ?? 'no-such-account');
     const ok = !!account && crypto.timingSafeEqual(Buffer.from(given, 'hex'), Buffer.from(account.hash, 'hex'));
     if (!ok) {
       f.count += 1;
+      f.last = now;
       if (f.count >= MAX_FAILURES) {
         f.count = 0;
         f.until = now + LOCK_MS;
