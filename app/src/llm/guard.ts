@@ -6,14 +6,39 @@
 const norm = (s: string) => s.toLowerCase().replace(/[’‘]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, ' ').trim();
 const wordCount = (s: string) => (s.match(/[\p{L}\p{N}]+/gu) ?? []).length;
 
-/** Did the student ask the counselor to write for them? */
+const WRITE = '(write|rewrite|draft|compose|generate|redo|reword|rephrase|fix up|polish|finish|continue)';
+const PIECE = '(essay|paragraph|paragraphs|intro|introduction|opening|conclusion|ending|sentence|sentences|hook|it|this|that)';
+const WRITE_REQUESTS = [
+  // "can you write ...", "write me ...", "... write it for me"
+  new RegExp(`\\b(can|could|would|will) you (please |just |maybe )*${WRITE}\\b`),
+  new RegExp(`\\b${WRITE} me\\b`),
+  new RegExp(`\\b${WRITE}\\b.{0,60}\\bfor me\\b`),
+  // An instruction: the sentence begins with the verb ("just draft the conclusion").
+  new RegExp(`(^|[.!?] )(please |just |now |okay |ok |and |then |jarvis,? )*${WRITE}\\b.{0,60}\\b${PIECE}\\b`),
+  /\bgive me (a|an|the) (paragraph|intro|introduction|opening|conclusion|draft|essay)\b/,
+];
+
+/**
+ * Did the student ask the counselor to write for them? Talking about their own
+ * writing ("I want to write about that summer") is not a request.
+ */
 export function asksForWriting(message: string): boolean {
   const m = norm(message);
-  return (
-    /\b(write|rewrite|draft|compose|generate|redo|reword|rephrase|fix up|polish|finish|continue)\b.{0,60}\b(essay|paragraph|paragraphs|intro|introduction|opening|conclusion|ending|sentence|sentences|hook|it|this|that)\b/.test(m) ||
-    /\b(can|could|would|will) you (just )?(write|rewrite|draft)\b/.test(m) ||
-    /\bgive me (a|an|the) (paragraph|intro|introduction|opening|conclusion|draft|essay)\b/.test(m)
-  );
+  return WRITE_REQUESTS.some((re) => re.test(m));
+}
+
+/**
+ * Does this reply say again, word for word, a sentence the counselor has
+ * already said? Short stock phrases ("Go on.") do not count.
+ */
+export function repeatsItself(reply: string, earlier: string[]): boolean {
+  const sentences = (text: string) =>
+    norm(text.replace(/\[interrupted\]/g, ''))
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.replace(/[^\p{L}\p{N}\s']/gu, '').replace(/\s+/g, ' ').trim())
+      .filter((s) => wordCount(s) >= 5);
+  const before = new Set(earlier.flatMap(sentences));
+  return before.size > 0 && sentences(reply).some((s) => before.has(s));
 }
 
 export interface QuotedSpan {

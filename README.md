@@ -10,7 +10,7 @@ Say **“Jarvis”** to wake it, talk to the counselor out loud and hear it answ
 
 ## Download for Mac
 
-Get **Scribe-0.3.2-arm64.dmg** from the [latest release](https://github.com/EaglesSBLII/scribe/releases/latest). It is for Apple Silicon Macs (M1 or newer) and was built on macOS 26; it has not been tried on older versions of macOS.
+Get **Scribe-0.3.3-arm64.dmg** from the [latest release](https://github.com/EaglesSBLII/scribe/releases/latest). It is for Apple Silicon Macs (M1 or newer) and was built on macOS 26; it has not been tried on older versions of macOS.
 
 1. Open the .dmg and drag **Scribe** into **Applications**.
 2. Scribe is not signed with an Apple developer certificate, so macOS blocks it the first time. Open Terminal and run:

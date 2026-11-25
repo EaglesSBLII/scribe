@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { asksForWriting, isVerbatim, looksDrafted, splitQuotes } from '../../src/llm/guard';
+import { asksForWriting, isVerbatim, looksDrafted, repeatsItself, splitQuotes } from '../../src/llm/guard';
+import { AFTER_QUESTION_MS, AFTER_SENTENCE_MS, AFTER_TRAILING_MS, turnPause } from '../../src/voice/turn';
 import { numberedEssay } from '../../src/llm/prompts';
 import { looksLikeEditRequest } from '../../src/llm/assist';
 import { locate, mechanicalChecks } from '../../src/checks';
@@ -44,7 +45,38 @@ describe('spotting a request to write the essay', () => {
     'Does this answer the prompt?',
     'Is my opening too slow?',
     'I wrote this last night, is it any good?',
+    // Talking about their own writing, at length, is not a request.
+    'So I want to write about that summer, because it changed how I see my dad.',
+    'I finished it at two in the morning and I think that is why the ending is weak.',
+    'My teacher told me to continue with this idea, but I am not sure about it.',
   ])('not: %s', (m) => expect(asksForWriting(m)).toBe(false));
+});
+
+describe('noticing a repeated reply', () => {
+  const earlier = ['That sounds like a turning point. What did you do the moment the engine stopped?'];
+  it('catches a question asked again word for word', () => {
+    expect(repeatsItself('Interesting. What did you do the moment the engine stopped?', earlier)).toBe(true);
+    expect(repeatsItself('what did you do the moment the engine stopped', earlier)).toBe(true);
+  });
+  it('lets new sentences and short stock phrases through', () => {
+    expect(repeatsItself('So your grandfather said nothing at all. What did that silence tell you?', earlier)).toBe(false);
+    expect(repeatsItself('Go on.', ['Go on.'])).toBe(false);
+    expect(repeatsItself('Anything at all.', [])).toBe(false);
+  });
+});
+
+describe('waiting for the end of a spoken turn', () => {
+  it('waits longest when the speaker trails off', () => {
+    expect(turnPause('I was at the lake with my grandfather and')).toBe(AFTER_TRAILING_MS);
+    expect(turnPause('It was hard because.')).toBe(AFTER_TRAILING_MS);
+    expect(turnPause('And then, um,')).toBe(AFTER_TRAILING_MS);
+    expect(turnPause('I thought about it for a while...')).toBe(AFTER_TRAILING_MS);
+  });
+  it('waits after a finished sentence, and least after a question', () => {
+    expect(turnPause('The engine would not start.')).toBe(AFTER_SENTENCE_MS);
+    expect(turnPause('Does my opening work?')).toBe(AFTER_QUESTION_MS);
+    expect(AFTER_SENTENCE_MS).toBeGreaterThan(AFTER_QUESTION_MS);
+  });
 });
 
 describe('checking a reply for drafted essay text', () => {

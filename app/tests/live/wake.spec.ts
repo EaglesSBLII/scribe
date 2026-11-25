@@ -25,7 +25,9 @@ test('the wake word: "Jarvis" starts a session, commands need the name, and the 
   const status = page.getByTestId('dictation-status');
 
   // Switch the wake word on: the microphone opens, but nothing is written down yet.
-  await page.getByRole('button', { name: 'Wake word' }).click();
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByLabel('Listen for Jarvis').check();
+  await page.getByRole('button', { name: 'Back to essays' }).click();
   await expect(status).toHaveText('Say “Jarvis”');
   await expect(page.getByRole('button', { name: 'Start dictation' })).toBeVisible();
 
@@ -49,6 +51,7 @@ test('the wake word: "Jarvis" starts a session, commands need the name, and the 
   await expect(para).not.toContainText(/word count|stop listening|Nobody|tried/i);
 
   // The wake setting is remembered.
-  await expect(page.getByRole('button', { name: 'Wake word' })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByLabel('Listen for Jarvis')).toBeChecked();
   expect(outside).toEqual([]);
 });

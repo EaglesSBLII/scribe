@@ -23,6 +23,7 @@ import { mayChangeEssay as changesEssay, parseCommand } from '../commands/parse'
 import { isSleepRequest, readWake } from '../voice/wake';
 import { playEarcon, unlockAudio } from '../voice/earcons';
 import { askCounselor, interrupt, setVoiceOn } from '../voice/bus';
+import { turnPause } from '../voice/turn';
 
 interface DictationState {
   /** Dictating. */
@@ -40,10 +41,12 @@ interface DictationState {
   error: string | null;
   /** Where the words go: into the essay, or to the counselor as a question. */
   target: 'essay' | 'counselor';
+  /** What has been said to the counselor so far in this turn, while Scribe waits for the rest. */
+  turn: string;
 }
 
 export const useDictation = create<DictationState>(() => ({
-  on: false, standby: false, awaiting: false, hearing: false, waiting: 0, interim: '', error: null, target: 'essay',
+  on: false, standby: false, awaiting: false, hearing: false, waiting: 0, interim: '', error: null, target: 'essay', turn: '',
 }));
 
 // Other parts of the app speak questions aloud only while the writer is working by voice.
@@ -130,6 +133,65 @@ async function hear(wav: ArrayBuffer, rough: Heard | null): Promise<Heard> {
     }
   }
   return platform.transcribe(wav);
+}
+
+// ---- A whole turn for the counselor ----
+// What is said to the counselor arrives in pieces, one per pause for breath. The
+// pieces are held here and sent as one turn once the writer has really stopped.
+let turn: string[] = [];
+let turnSpeechEnd = 0;
+let turnTimer: ReturnType<typeof setTimeout> | undefined;
+/** The counselor was stopped because the writer kept talking; it still owes an answer. */
+let answerOwed = false;
+
+/** Speech goes to the counselor a turn at a time (conversation mode, or the counselor's own microphone). */
+function talkingToCounselor(): boolean {
+  const state = useDictation.getState();
+  return state.on && !state.awaiting && !useStore.getState().pending
+    && (state.target === 'counselor' || useSettings.getState().counselorMode === 'conversation');
+}
+
+function addToTurn(text: string, speechEnd: number) {
+  turn.push(text);
+  turnSpeechEnd = speechEnd;
+  useDictation.setState({ turn: turn.join(' ') });
+}
+
+/** Start (or restart) the wait for the end of the turn. Nothing is sent while speech is still being heard or worked out. */
+function armTurn() {
+  clearTimeout(turnTimer);
+  const state = useDictation.getState();
+  if (state.hearing || state.waiting > 0) return;
+  if (turn.length === 0) {
+    // The writer made a sound but said nothing new: the counselor answers what it already has.
+    if (answerOwed) {
+      answerOwed = false;
+      askCounselor('');
+    }
+    return;
+  }
+  const wait = turnSpeechEnd + turnPause(turn.join(' ')) - performance.now();
+  turnTimer = setTimeout(sendTurn, Math.max(0, wait));
+}
+
+function sendTurn() {
+  clearTimeout(turnTimer);
+  const state = useDictation.getState();
+  if (state.hearing || state.waiting > 0) return;
+  const said = takeTurn();
+  if (!said) return;
+  // The counselor's own microphone is for one turn; it closes once the turn is over.
+  if (state.on && state.target === 'counselor') stopDictation();
+  askCounselor(said);
+}
+
+function takeTurn(): string {
+  clearTimeout(turnTimer);
+  const said = turn.join(' ');
+  turn = [];
+  answerOwed = false;
+  if (useDictation.getState().turn) useDictation.setState({ turn: '' });
+  return said;
 }
 
 /** How long a pause ends an utterance right now. Conversation is quicker than dictation. */
@@ -225,7 +287,7 @@ async function addressed(words: HeardWord[]) {
   await useStore.getState().handleAddressed(words);
 }
 
-async function heardWhileDictating(words: HeardWord[], paused: boolean) {
+async function heardWhileDictating(words: HeardWord[], paused: boolean, speechEnd: number) {
   // If Scribe has asked something ("this one?", "yes, delete it?"), this may be the answer.
   if (useStore.getState().answerPending(words)) return;
   if (useDictation.getState().awaiting) return addressed(words);
@@ -235,8 +297,9 @@ async function heardWhileDictating(words: HeardWord[], paused: boolean) {
     // Plain commands ("word count", "undo") still work without the name.
     const cmd = parseCommand(words, { addressed: true });
     if (cmd) return void useStore.getState().handleCommand(cmd);
+    // It is held until the writer has finished the whole thought.
     const said = clean(words).text.replace(/\s+/g, ' ').trim();
-    if (said) askCounselor(said);
+    if (said) addToTurn(said, speechEnd);
     return;
   }
   if (!wake.wake) return useStore.getState().insertHeard(words, paused);
@@ -286,6 +349,8 @@ async function openMic(): Promise<boolean> {
     interimEvery: 1,
     onSpeechStart: () => {
       useDictation.setState({ hearing: true });
+      // Still talking: the turn is not over.
+      clearTimeout(turnTimer);
       chunker?.setEndSilence(endSilenceNow());
       // Something said to Scribe is short, so its quick transcription starts at the first
       // hint of a pause. Dictation is heard exactly, which takes longer, so it waits for a
@@ -305,6 +370,13 @@ async function openMic(): Promise<boolean> {
       startEarly(samples);
     },
     onInterim: (samples) => {
+      // A second of speech while the counselor is still thinking means the writer had not
+      // finished. It stops, and answers once it has heard the rest.
+      if (talkingToCounselor() && !useSpeech.getState().audible) {
+        stopSpeaking();
+        interrupt();
+        answerOwed = true;
+      }
       // Rough text is shown only while dictating; skip a preview if the last one is still being worked out.
       if (interimBusy || earlyBusy || !useDictation.getState().on) return;
       interimBusy = true;
@@ -326,7 +398,10 @@ async function openMic(): Promise<boolean> {
       early = null;
       // Anything still queued for early transcription belonged to this stretch.
       earlyNext = null;
-      if (samples.length < MIN_SPEECH_SECONDS * SAMPLE_RATE) return useDictation.setState({ interim: '' });
+      if (samples.length < MIN_SPEECH_SECONDS * SAMPLE_RATE) {
+        useDictation.setState({ interim: '' });
+        return armTurn();
+      }
       useDictation.setState((s) => ({ waiting: s.waiting + 1 }));
       const speechEnd = performance.now() - quietSeconds * 1000;
       const speechStart = performance.now() - (samples.length / SAMPLE_RATE) * 1000;
@@ -366,10 +441,9 @@ async function openMic(): Promise<boolean> {
           } else if (state.target === 'counselor') {
             // A spoken question for the counselor: it goes to the panel, never the essay.
             const question = clean(heard.words).text.replace(/\s+/g, ' ').trim();
-            stopDictation();
-            if (question) askCounselor(question);
+            if (question) addToTurn(question, speechEnd);
           } else {
-            await heardWhileDictating(heard.words, paused);
+            await heardWhileDictating(heard.words, paused, speechEnd);
             recordDictated(speechEnd);
           }
         } catch (err) {
@@ -377,6 +451,7 @@ async function openMic(): Promise<boolean> {
           else useDictation.setState({ error: err instanceof Error ? err.message : 'Transcription failed.' });
         } finally {
           useDictation.setState((s) => ({ waiting: Math.max(0, s.waiting - 1), interim: s.hearing ? s.interim : '' }));
+          armTurn();
         }
       });
     },
@@ -413,6 +488,7 @@ function closeMic() {
   void ctx?.close();
   ctx = null;
   setAwaiting(false);
+  takeTurn();
   useDictation.setState({ on: false, standby: false, hearing: false });
 }
 
@@ -438,6 +514,11 @@ export async function startStandby() {
 /** Stop dictating. With the wake word switched on, Scribe goes back to waiting for "Jarvis". */
 export function stopDictation() {
   const wasOn = useDictation.getState().on;
+  // A conversation with the counselor lasts until the microphone is switched off.
+  if (useSettings.getState().counselorMode === 'conversation') void useSettings.getState().set('counselorMode', 'draft');
+  // Switching the microphone off ends the turn: what was said so far is sent.
+  const said = takeTurn();
+  if (said) askCounselor(said);
   if (useSettings.getState().wakeWord && stream) {
     chunker?.flush();
     chunker?.setEndSilence(STANDBY_SILENCE);
@@ -450,8 +531,27 @@ export function stopDictation() {
 }
 
 export function toggleDictation(target: 'essay' | 'counselor' = 'essay') {
-  if (useDictation.getState().on) stopDictation();
+  const on = useDictation.getState().on;
+  // Dictate only ever dictates. If a conversation with the counselor is going on, it ends
+  // here and the microphone stays open for the essay.
+  if (target === 'essay' && useSettings.getState().counselorMode === 'conversation') {
+    void useSettings.getState().set('counselorMode', 'draft');
+    if (on) {
+      const said = takeTurn();
+      if (said) askCounselor(said);
+      return;
+    }
+  }
+  if (on) stopDictation();
   else void startDictation(target);
+}
+
+/** The Jarvis button: talk with the counselor until it is pressed again. Nothing said goes into the essay. */
+export async function toggleConversation() {
+  const settings = useSettings.getState();
+  if (useDictation.getState().on && settings.counselorMode === 'conversation') return stopDictation();
+  await settings.set('counselorMode', 'conversation');
+  if (!useDictation.getState().on) await startDictation('essay');
 }
 
 /** Switch the wake word on or off; the choice is remembered. */

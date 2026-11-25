@@ -42,19 +42,32 @@ export function startCoach() {
   if (started) return;
   started = true;
 
+  // What the writer has said that the counselor has not yet been given, and the wait for it to be free.
+  let queued: string | null = null;
+  let off: (() => void) | null = null;
   setQuestionHandler((text) => {
     const essay = currentEssay();
     if (!essay) return;
     const counselor = useCounselor.getState();
     counselor.setOpen(true);
-    const ask = () => void useCounselor.getState().ask(text, viewOf(essay), { spoken: true });
-    if (!counselor.busy) return ask();
-    // Still writing the last answer: the new question takes over instead of being lost.
-    counselor.stop();
-    const off = useCounselor.subscribe((s) => {
+    const go = () => {
+      const said = queued;
+      queued = null;
+      const now = currentEssay();
+      if (said === null || !now) return;
+      // No new words means: answer what was said before the writer made a sound.
+      if (said) void useCounselor.getState().ask(said, viewOf(now), { spoken: true });
+      else void useCounselor.getState().resume(viewOf(now));
+    };
+    queued = [queued, text].filter(Boolean).join(' ');
+    if (!counselor.busy) return go();
+    // Still writing an answer: something new takes over instead of being lost.
+    if (text) counselor.stop();
+    off ??= useCounselor.subscribe((s) => {
       if (s.busy) return;
-      off();
-      ask();
+      off?.();
+      off = null;
+      go();
     });
   });
   setInterruptHandler(() => useCounselor.getState().stop());

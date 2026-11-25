@@ -209,6 +209,7 @@ export function CounselorPanel() {
   const essay = useStore((s) => s.essays.find((e) => e.id === s.currentId));
   const { messages, stories, streaming, busy, error } = useCounselor();
   const listening = useDictation((s) => s.on && s.target === 'counselor');
+  const turn = useDictation((s) => s.turn);
   const [draft, setDraft] = useState('');
   const [gradeOpen, setGradeOpen] = useState(false);
   const memoryRows = useMemory((s) => s.rows);
@@ -218,7 +219,7 @@ export function CounselorPanel() {
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: 'end' });
-  }, [messages.length, streaming]);
+  }, [messages.length, streaming, turn]);
 
   if (!essay) return null;
   const counselor = useCounselor.getState();
@@ -370,6 +371,11 @@ export function CounselorPanel() {
             )}
           </div>
         ))}
+        {turn && (
+          <div data-testid="turn-so-far" className="ml-8 rounded-lg border border-dashed border-line px-3 py-2 text-muted">
+            {turn} <span className="text-xs">· listening…</span>
+          </div>
+        )}
         {streaming !== null && (
           <div data-role="assistant" className="mr-4 whitespace-pre-wrap leading-relaxed text-muted">
             {streaming || 'Thinking…'}

@@ -9,7 +9,7 @@ import { useStore } from '../store';
 import { paraText, textToNodes, type Inline, type Paragraph } from '../doc/types';
 import { tidy } from '../doc/ops';
 import { clearPending, registerPending } from '../editorBus';
-import { setWakeWord, toggleDictation, useDictation } from '../dictation/session';
+import { toggleConversation, toggleDictation, useDictation } from '../dictation/session';
 import { useSettings } from '../settings';
 import { clock } from './time';
 import { CommandChip } from './CommandChip';
@@ -201,18 +201,23 @@ function ParagraphBlock({ para, index, count, equationNo }: { para: Paragraph; i
 
 function DictationButton() {
   const { hearing, waiting, error, standby, awaiting } = useDictation();
-  const on = useDictation((s) => s.on && s.target === 'essay');
-  const wakeWord = useSettings((s) => s.wakeWord);
+  const listening = useDictation((s) => s.on && s.target === 'essay');
+  // Talking with the counselor (the Jarvis button) and dictating (the Dictate button) are separate.
+  const talking = useSettings((s) => s.counselorMode === 'conversation') && listening;
+  const on = listening && !talking;
   const status =
-    error ?? (standby ? 'Say “Jarvis”' : !on ? '' : awaiting ? 'Yes? Go ahead…' : hearing ? 'Hearing you…' : waiting > 0 ? 'Writing it down…' : 'Listening');
+    error ?? (standby ? 'Say “Jarvis”' : !listening ? '' : awaiting ? 'Yes? Go ahead…' : hearing ? 'Hearing you…' : waiting > 0 ? (talking ? 'Got that…' : 'Writing it down…') : talking ? 'Talking with Jarvis' : 'Listening');
   return (
     <>
       <button
-        aria-pressed={wakeWord}
-        aria-label="Wake word"
-        title={wakeWord ? 'Listening for “Jarvis”. Click to switch the wake word off.' : 'Switch on the wake word: say “Jarvis” to start, hands-free.'}
-        onClick={() => void setWakeWord(!wakeWord)}
-        className={`flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1.5 text-sm ${wakeWord ? 'border-accent bg-accent-soft font-medium text-accent' : 'border-line text-muted'}`}
+        aria-pressed={talking}
+        aria-label={talking ? 'Stop talking with Jarvis' : 'Talk with Jarvis'}
+        title={talking ? 'You are talking with the counselor. Click to stop.' : 'Talk with the counselor out loud. Nothing you say goes into the essay.'}
+        onClick={() => {
+          if (!talking) useCounselor.getState().setOpen(true);
+          void toggleConversation();
+        }}
+        className={`flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1.5 text-sm ${talking ? 'border-accent bg-accent-soft font-medium text-accent' : 'border-line text-muted'}`}
       >
         <Ear size={15} /> Jarvis
       </button>

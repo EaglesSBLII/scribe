@@ -12,7 +12,7 @@ import { UpdateCard } from './UpdateCard';
 const MODES: { id: CounselorMode; name: string; what: string }[] = [
   { id: 'draft', name: 'Draft (quiet)', what: 'Only reacts to commands and to questions you ask by name.' },
   { id: 'coach', name: 'Coach', what: 'Also speaks up briefly at natural breaks: a paragraph ends, you pause for about six seconds, or the word limit is near.' },
-  { id: 'conversation', name: 'Conversation', what: 'A full back-and-forth. What you say goes to the counselor, not into the essay. This is the default while brainstorming.' },
+  { id: 'conversation', name: 'Conversation', what: 'A full back-and-forth. What you say goes to the counselor, not into the essay. The Jarvis button starts one; it ends when you stop or press Dictate.' },
 ];
 
 function Row(props: { label: string; hint?: string; children: React.ReactNode }) {

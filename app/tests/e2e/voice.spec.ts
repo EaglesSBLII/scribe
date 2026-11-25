@@ -81,14 +81,16 @@ test('the autosave cue plays at most once a minute, and deleting by button plays
   expect((await playedCues(page)).filter((c) => c === 'saved')).toHaveLength(1);
 });
 
-test('the wake-word switch is in settings and in the header, and they agree', async ({ page }) => {
+test('the wake-word switch is in settings; the Jarvis button is for talking with the counselor', async ({ page }) => {
   await start(page);
-  await expect(page.getByRole('button', { name: 'Wake word' })).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('button', { name: 'Talk with Jarvis' })).toHaveAttribute('aria-pressed', 'false');
+  // Brainstorming no longer turns dictation into a conversation by itself.
+  await page.getByRole('button', { name: 'Brainstorm' }).click();
   await openSettings(page);
+  await expect(page.getByRole('radio', { name: /Draft/ })).toBeChecked();
   await expect(page.getByLabel('Listen for Jarvis')).not.toBeChecked();
   await page.getByLabel('Listen for Jarvis').check();
   await page.getByRole('button', { name: 'Back to essays' }).click();
-  await expect(page.getByRole('button', { name: 'Wake word' })).toHaveAttribute('aria-pressed', 'true');
   // No speech engine in this test: Scribe says so instead of pretending to listen.
   await expect(page.getByTestId('dictation-status')).toContainText('speech engine is not running');
 });
