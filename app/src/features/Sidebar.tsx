@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Archive, ArchiveRestore, ArrowDown, ArrowUp, Fingerprint, GraduationCap, MoreHorizontal, Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowDown, ArrowUp, Fingerprint, Folder, FolderOpen, GraduationCap, MoreHorizontal, Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useMemory } from '../memory/store';
 import { useSettings } from '../settings';
 import { useStore } from '../store';
@@ -26,6 +26,7 @@ export function Sidebar() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
   const store = useStore.getState();
   const navOpen = useUi((u) => u.navOpen);
   const closeNav = () => useUi.getState().setNavOpen(false);
@@ -34,9 +35,15 @@ export function Sidebar() {
   const active = sorted.filter((e) => !e.archived);
   const archived = sorted.filter((e) => e.archived);
 
-  /** Move within the visible list by swapping places with a neighbour. */
+  // Essays written for a college sit in that college's folder; the rest stay loose.
+  // A folder stands where its first essay stands.
+  const folders = new Map<string, EssayRow[]>();
+  for (const e of active) if (e.collegeId) folders.set(e.collegeId, [...(folders.get(e.collegeId) ?? []), e]);
+
+  /** Move within the essay's own folder (or among the loose essays) by swapping places with a neighbour. */
   function nudge(essay: EssayRow, delta: number) {
-    const neighbour = active[active.indexOf(essay) + delta];
+    const beside = active.filter((e) => e.collegeId === essay.collegeId);
+    const neighbour = beside[beside.indexOf(essay) + delta];
     if (neighbour) store.moveEssay(essay.id, sorted.indexOf(neighbour));
     setMenuFor(null);
   }
@@ -83,11 +90,11 @@ export function Sidebar() {
             onDoubleClick={() => setRenaming(essay.id)}
           >
             <span className="block truncate text-sm font-medium">{essay.title}</span>
-            {essay.collegeId && (
-              <span className="block truncate text-xs text-muted">
-                {colleges.find((c) => c.id === essay.collegeId)?.name}
-                {essay.promptId ? ` · ${prompts.find((p) => p.id === essay.promptId)?.label ?? ''}` : ''}
-              </span>
+            {essay.archived && essay.collegeId && (
+              <span className="block truncate text-xs text-muted">{collegeName(essay.collegeId)}</span>
+            )}
+            {essay.promptId && (
+              <span className="block truncate text-xs text-muted">{prompts.find((p) => p.id === essay.promptId)?.label ?? ''}</span>
             )}
             <span className="block text-xs text-muted">
               {essay.archived ? 'Archived' : STAGE_LABEL[essay.stage]} · {essay.wordCount} words · {ago(essay.updatedAt)}
@@ -123,6 +130,50 @@ export function Sidebar() {
     );
   }
 
+  function collegeName(id: string) {
+    return colleges.find((c) => c.id === id)?.name ?? 'College';
+  }
+
+  function folder(collegeId: string, inside: EssayRow[]) {
+    const name = collegeName(collegeId);
+    const open = !closed.has(collegeId);
+    return (
+      <li key={`folder-${collegeId}`} data-testid="college-folder">
+        <div className="group flex items-center rounded-md hover:bg-raised">
+          <button
+            className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left text-sm font-medium"
+            aria-expanded={open}
+            onClick={() => {
+              const next = new Set(closed);
+              if (open) next.add(collegeId);
+              else next.delete(collegeId);
+              setClosed(next);
+            }}
+          >
+            {open ? <FolderOpen size={15} className="shrink-0 text-accent" /> : <Folder size={15} className="shrink-0 text-accent" />}
+            <span className="truncate">{name}</span>
+            <span className="shrink-0 text-xs font-normal text-muted">{inside.length}</span>
+          </button>
+          <button
+            aria-label={`New essay for ${name}`}
+            title={`New essay for ${name}`}
+            className="mr-1 rounded p-1 text-muted hover:bg-panel"
+            onClick={async () => {
+              closeNav();
+              const before = useStore.getState().currentId;
+              await store.createEssay();
+              const made = useStore.getState().currentId;
+              if (made && made !== before) useStore.getState().setEssayPrompt(made, collegeId, null);
+            }}
+          >
+            <Plus size={15} />
+          </button>
+        </div>
+        {open && <ul className="ml-3 space-y-1 border-l border-line pl-1 pt-1">{inside.map(row)}</ul>}
+      </li>
+    );
+  }
+
   return (
     <nav
       aria-label="Essays"
@@ -144,7 +195,11 @@ export function Sidebar() {
         </button>
       </div>
       <ul className="flex-1 space-y-1 overflow-y-auto px-2">
-        {active.map(row)}
+        {active.map((e) => {
+          if (!e.collegeId) return row(e);
+          const inside = folders.get(e.collegeId)!;
+          return inside[0] === e ? folder(e.collegeId, inside) : null;
+        })}
         {active.length === 0 && <li className="px-3 py-2 text-sm text-muted">No essays yet.</li>}
         {archived.length > 0 && (
           <li className="pt-3">

@@ -30,6 +30,16 @@ test('an essay is tied to a college and prompt, which sets its prompt, limit and
   const tab = page.getByTestId('essay-tab');
   await expect(tab).toContainText('Personal Insight Question 5');
 
+  // The essay now sits in the college's folder, and a second essay for that college joins it.
+  const folder = page.getByTestId('college-folder');
+  await expect(folder).toHaveCount(1);
+  await expect(folder).toContainText('Berkeley');
+  await expect(folder.getByTestId('essay-tab')).toHaveCount(1);
+  await folder.getByRole('button', { name: /^New essay for/ }).click();
+  await expect(folder.getByTestId('essay-tab')).toHaveCount(2);
+  await folder.getByTestId('essay-tab').first().getByRole('button').first().click();
+  await expect(page.getByLabel('Essay title').first()).toHaveValue(/Personal Insight Question 5$/);
+
   // The counselor is given the prompt and what the school has published, and nothing else.
   await page.getByRole('button', { name: 'Open counselor' }).click();
   await expect(page.getByLabel('Essay prompt')).toHaveValue(/most significant challenge/);
